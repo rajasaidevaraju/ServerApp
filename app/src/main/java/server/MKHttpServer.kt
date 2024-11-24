@@ -52,8 +52,25 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
 
             "/files"->{
-                val allFileData = database.fileDao().getSimplifiedFilesMeta()
-                val jsonContent: String = gson.toJson(allFileData)
+                val params = session.parameters
+                val page = params["page"]?.firstOrNull()
+                var pageNo=1
+                val pageSize=12
+                if(!page.isNullOrBlank()){
+                    pageNo=page.toIntOrNull()?:1
+                }
+                val offSet=(pageNo-1)*pageSize
+                val paginatedFileData = database.fileDao().getSimplifiedFilesMetaPagenated(offSet,pageSize)
+                val totalFiles = database.fileDao().getTotalFileCount()
+                val responseContent = mapOf(
+                    "data" to paginatedFileData,
+                    "meta" to mapOf(
+                        "page" to pageNo,
+                        "limit" to pageSize,
+                        "total" to totalFiles
+                    )
+                )
+                val jsonContent: String = gson.toJson(responseContent)
                 response = newFixedLengthResponse(Response.Status.OK, "application/json", jsonContent)
             }
             "/file"->{

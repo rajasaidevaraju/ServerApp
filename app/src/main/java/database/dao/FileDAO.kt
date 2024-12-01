@@ -1,12 +1,12 @@
 package database.dao
 
+import androidx.lifecycle.LiveData
 import database.entity.FileMeta
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Update
 import database.entity.Actress
 import database.entity.SimplifiedFileMeta
@@ -30,6 +30,9 @@ interface FileDAO {
 
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
+
+    @Query("SELECT COUNT(*) FROM file_meta")
+    fun getTotalFileCountLive(): LiveData<Int>
 
     @Query("SELECT file_name FROM file_meta")
     fun getAllFileNames(): List<String>

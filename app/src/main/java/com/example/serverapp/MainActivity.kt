@@ -16,7 +16,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,7 +26,6 @@ import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -37,12 +35,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Switch
@@ -56,6 +51,9 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.asFlow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import database.AppDatabase
 
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private var uiServerMode by mutableStateOf<Boolean?>(null)
     private val SERVER_START_ACTION_NAME="SERVER_START"
     private val SERVER_STOP_ACTION_NAME="SERVER_STOP"
+    private val database  by lazy { AppDatabase.getDatabase(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,7 +103,7 @@ class MainActivity : ComponentActivity() {
 
                         if (prefHandler.getURI() != null) {
                             selectedFolderUri = prefHandler.getURI().toString()
-                            FrontEndServerStatus()
+                            Info()
                             FrontEndServer()
                             BackendServer()
                         }
@@ -161,27 +160,37 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun FrontEndServerStatus(){
+    fun Info(){
+        val rowCount by database.fileDao().getTotalFileCountLive().asFlow().collectAsStateWithLifecycle(
+            initialValue = 0
+        )
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 10.dp)) {
-                val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }";
-                StyledText(text = uiServerModeText)
-                Spacer(Modifier.weight(1f))
-                Switch(
-                    checked = uiServerMode==true,
-                    onCheckedChange = { newValue ->
-                        uiServerMode = newValue
-                        prefHandler.storeUIServerMode(newValue)  // Store preference
-                    },
-                    modifier = Modifier.padding(16.dp)
-                )
-
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp)
+            ){
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StyledText(text = "Total rows in database:")
+                    Spacer(Modifier.weight(1f))
+                    StyledText(text = "$rowCount")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }";
+                    StyledText(text = uiServerModeText)
+                    Spacer(Modifier.weight(1f))
+                    Switch(
+                        checked = uiServerMode==true,
+                        onCheckedChange = { newValue ->
+                            uiServerMode = newValue
+                            prefHandler.storeUIServerMode(newValue)  // Store preference
+                        }
+                    )
+                }
             }
         }
     }

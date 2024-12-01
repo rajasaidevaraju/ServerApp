@@ -38,10 +38,11 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun handleServerRequest(url: String, session: IHTTPSession): Response{
         var response: Response=newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
-        val rootUri = prefHandler.getURI()
+        val sdCardURI = prefHandler.getSDCardURI()
+        val internalURI = prefHandler.getInternalURI()
         val gson: Gson = GsonBuilder().create()
 
-        if(rootUri==null){
+        if(sdCardURI==null && internalURI==null){
             response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "No Root Folder Selected")
             return response;
         }
@@ -92,7 +93,21 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
             }
             "/scan"->{
-                response= fileSerivice.scanFolder(rootUri,fileHandlerHelper,database)
+                val rows:MutableList<Long> = mutableListOf()
+                if(sdCardURI!=null){
+                    val tempRows=fileSerivice.scanFolder(sdCardURI,fileHandlerHelper,database)
+                    rows.addAll(tempRows)
+                }
+                if(internalURI!=null){
+                    val tempRows=fileSerivice.scanFolder(internalURI,fileHandlerHelper,database)
+                    rows.addAll(tempRows)
+                }
+                val notInsertedRows = rows.count {it==-1L}
+                response= newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.OK,
+                    "text/plain",
+                    "${rows.size} insertions attempted and $notInsertedRows not inserted into the database"
+                )
             }
             "/clean"->{
                 val removedEntries=dbService.removeAbsentEntries(context,database.fileDao())

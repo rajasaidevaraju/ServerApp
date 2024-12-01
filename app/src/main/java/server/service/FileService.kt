@@ -14,17 +14,10 @@ class FileService {
 
     private val mimeType = "video/mp4";
 
-    fun scanFolder(selectedDirectoryUri: Uri, fileHandlerHelper: FileHandlerHelper, database:AppDatabase): NanoHTTPD.Response {
-
+    fun scanFolder(selectedDirectoryUri: Uri, fileHandlerHelper: FileHandlerHelper, database:AppDatabase): List<Long> {
         val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri);
         val rows=database.fileDao().insertFiles(fileMetas)
-        val notInsertedRows = rows.count {it==-1L}
-        return NanoHTTPD.newFixedLengthResponse(
-            NanoHTTPD.Response.Status.OK,
-            "text/plain",
-            "${rows.size} insertions attempted and $notInsertedRows not inserted into the database"
-        )
-
+        return rows
     }
 
     fun streamFile(fileId: Long, context: Context, database: AppDatabase, headers: Map<String, String>): NanoHTTPD.Response {

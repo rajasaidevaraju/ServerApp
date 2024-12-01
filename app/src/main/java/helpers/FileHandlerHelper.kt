@@ -2,6 +2,7 @@ package helpers
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.entity.FileMeta
@@ -10,6 +11,19 @@ import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 
 
 class FileHandlerHelper(private val context: Context){
+
+    fun getFolderNameFromUri(uri: Uri?): String? {
+
+
+        val segments = uri?.pathSegments
+
+        return if(segments.isNullOrEmpty()){
+            null
+        }else{
+            segments.last()
+        }
+
+    }
 
     fun getUriForFileName(uri: Uri, fileName: String): DocumentFile? {
         val documentTree = DocumentFile.fromTreeUri(context, uri)
@@ -70,7 +84,7 @@ class FileHandlerHelper(private val context: Context){
             val inputStream = assetManager.open("web/$filePath") // Adjust the path to match your assets folder structure
             val fileBytes = inputStream.readBytes()
             val mimeType = getMimeType(filePath)
-            Log.d("MKHttpServer filePath:$filePath", assetManager.list("web")?.joinToString().orEmpty())
+            Log.d("MKHttpServer", "Successfully served filePath:$filePath")
             newFixedLengthResponse(NanoHTTPD.Response.Status.OK, mimeType, fileBytes.inputStream(), fileBytes.size.toLong())
         } catch (e: Exception) {
             Log.e("MKHttpServer", "Error serving file: $filePath", e)

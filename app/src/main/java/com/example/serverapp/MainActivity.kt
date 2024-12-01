@@ -5,10 +5,9 @@ package com.example.serverapp
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +24,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,22 +54,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.serverapp.ui.Select
+import com.example.serverapp.viewmodel.MainActivityViewModel
 import database.AppDatabase
+import helpers.FileHandlerHelper
 
 
 class MainActivity : ComponentActivity() {
 
 
     private val prefHandler by lazy { SharedPreferencesHelper(this) }
-    private var selectedFolderUri by mutableStateOf<String?>(null)
     private var isServerRunning by mutableStateOf(false)
     private var showAlertDialog by mutableStateOf(false)
     private var backEndUrl by mutableStateOf<String?>(null)
     private var frontEndUrl by mutableStateOf<String?>(null)
     private var uiServerMode by mutableStateOf<Boolean?>(null)
+    private val fileHandlerHelper by lazy { FileHandlerHelper(this) }
     private val SERVER_START_ACTION_NAME="SERVER_START"
     private val SERVER_STOP_ACTION_NAME="SERVER_STOP"
     private val database  by lazy { AppDatabase.getDatabase(this) }
+    private val mainActivityViewModel: MainActivityViewModel by viewModels()
+
+
+    private val requestPermissionLauncherSDCard = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            mainActivityViewModel.saveSDCardUri(uri)
+    }}
+
+    private val requestPermissionLauncherInternal = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            mainActivityViewModel.saveInternalUri(uri)
+        }}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,16 +118,10 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     )  {
 
-
-                        if (prefHandler.getURI() != null) {
-                            selectedFolderUri = prefHandler.getURI().toString()
                             Info()
                             FrontEndServer()
                             BackendServer()
-                        }
-                        else {
-                            FolderSelect()
-                        }
+                            Select(mainActivityViewModel,requestPermissionLauncherSDCard,requestPermissionLauncherInternal, fileHandlerHelper)
                     }
                 }
             }
@@ -301,12 +313,7 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(receiver)
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (selectedFolderUri==null &&prefHandler.getURI() != null) {
-            selectedFolderUri = prefHandler.getURI().toString()
-        }
-    }
+
 
     @Composable
     fun ServerImage() {
@@ -322,26 +329,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-        @Composable
-    fun FolderSelect() {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            StyledText(text = "Please Select a Folder to host files")
-            Button(
-                onClick = {
-                    requestPermissionLauncher.launch(null)
-                },
-                modifier = Modifier
-                    .padding(10.dp)
-                    .width(250.dp)
-            ) {
-                StyledText(text = "Select Folder")
-            }
-        }
-    }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -360,17 +347,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            prefHandler.storeURI(uri)
-            Log.d("SelectedFolder", "URI: $uri")
-
-        } else {
-            Log.d("SelectedFolder", "No folder selected")
-        }
-    }
-
     @Composable
     fun StyledText(text: String) {
 
@@ -381,5 +357,6 @@ class MainActivity : ComponentActivity() {
                 fontWeight = FontWeight.Bold,
                 fontSize=15.sp
             )
-        }
+    }
+
 }

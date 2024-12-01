@@ -6,14 +6,15 @@ import android.net.Uri
 class SharedPreferencesHelper(private val context: Context) {
 
     private val name="MyPrefs"
-    private val uriKey="selected_folder_uri"
+    private val uriKeySDCard="selected_folder_uri_sd_card"
+    private val uriKeyInternal="selected_folder_uri_internal"
     private val frontEndKey="front_end_url"
     private val backEndKey="back_end_url"
     private val uiServerModeKey="ui_server_mode"
     private val PREFS_KEY_SERVER_STATE = "SERVER_STATE_KEY" // Key to identify server state in SharedPreferences
     val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
-    fun getURI():Uri?{
+    private fun getURI(uriKey:String):Uri?{
         val selectedFolderUriString = sharedPrefs.getString(uriKey, null)
 
         if (selectedFolderUriString != null) {
@@ -25,7 +26,23 @@ class SharedPreferencesHelper(private val context: Context) {
 
     }
 
-    fun storeURI(selectedFolderUri:Uri){
+    fun getSDCardURI():Uri?{
+        return getURI(uriKeySDCard)
+    }
+
+    fun getInternalURI():Uri?{
+        return getURI(uriKeyInternal)
+    }
+
+    fun storeSDCardURI(selectedFolderUri:Uri){
+        storeURI(selectedFolderUri,uriKeySDCard)
+    }
+
+    fun storeInternalURI(selectedFolderUri:Uri){
+        storeURI(selectedFolderUri,uriKeyInternal)
+    }
+
+    private fun storeURI(selectedFolderUri:Uri, uriKey:String){
 
         val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
         val editor = sharedPrefs.edit()
@@ -33,6 +50,7 @@ class SharedPreferencesHelper(private val context: Context) {
         editor.putString(uriKey, selectedFolderUri.toString())
         editor.apply()
     }
+
 
     fun getFrontEndUrl(): String? {
         return sharedPrefs.getString(frontEndKey, null)

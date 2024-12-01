@@ -2,6 +2,7 @@
 package com.example.serverapp.viewmodel
 
 import android.app.Application
+import android.app.Dialog
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.AndroidViewModel
@@ -21,6 +22,10 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     val internalUri = MutableLiveData<Uri?>()
     val rowCount = MutableLiveData<Int>(0)
     val uiServerMode = MutableLiveData<Boolean>(false)
+    val frontEndUrl=MutableLiveData<String?>()
+    val backEndUrl=MutableLiveData<String?>()
+    val showAlertDialog = MutableLiveData<Boolean>(false)
+    val isServerRunning= MutableLiveData<Boolean>(false)
     init {
         loadPrefs()
         viewModelScope.launch {
@@ -36,6 +41,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         sdCardUri.value = prefHandler.getSDCardURI()
         internalUri.value = prefHandler.getInternalURI()
         uiServerMode.value=prefHandler.getUIServerMode()
+        frontEndUrl.value=prefHandler.getFrontEndUrl()
     }
 
     fun saveSDCardUri(uri: Uri) {
@@ -56,6 +62,38 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             prefHandler.storeUIServerMode(mode)
             uiServerMode.value=mode
+        }
+    }
+
+    fun setFrontEndUrl(url:String){
+        viewModelScope.launch {
+            prefHandler.storeFrontEndUrl(url)
+            frontEndUrl.value=url
+        }
+    }
+
+    fun setBackEndUrl(url:String){
+        viewModelScope.launch {
+            prefHandler.storeBackEndUrl(url)
+            backEndUrl.value=url
+        }
+    }
+
+    fun updateBackEndUrl(){
+        viewModelScope.launch {
+            backEndUrl.value= prefHandler.getBackEndUrl()
+        }
+    }
+
+    fun setShowAlertDialog(dialog:Boolean){
+        viewModelScope.launch {
+            showAlertDialog.value=dialog
+        }
+    }
+
+    fun setIsServerRunning(running:Boolean){
+        viewModelScope.launch {
+            isServerRunning.value=running
         }
     }
 }

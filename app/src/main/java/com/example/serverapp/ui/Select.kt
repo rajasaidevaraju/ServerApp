@@ -40,7 +40,7 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
                 .fillMaxWidth()
                 .padding(10.dp)
         ) {
-            val sdCardFolderName=fileHandlerHelper.getFolderNameFromUri(sdCardUri);
+            val sdCardFolderName=fileHandlerHelper.getFolderNameFromUri(sdCardUri)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StyledText("SD Card Folder")
                 Spacer(Modifier.weight(1f))
@@ -50,7 +50,7 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
                     StyledText(sdCardFolderName)
                 }
             }
-            val internalFolderName=fileHandlerHelper.getFolderNameFromUri(internalUri);
+            val internalFolderName=fileHandlerHelper.getFolderNameFromUri(internalUri)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StyledText("Internal Memory Folder")
@@ -72,10 +72,7 @@ fun FolderSelectButton(requestPermissionLauncher: ActivityResultLauncher<Uri?>) 
     Button(
         onClick = {
             requestPermissionLauncher.launch(null)
-        },
-        modifier = Modifier
-            .padding(5.dp)
-            .width(180.dp)
+        }
     ) {
         StyledText(text = "Select Folder")
     }

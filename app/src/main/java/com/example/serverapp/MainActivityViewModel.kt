@@ -2,13 +2,10 @@
 package com.example.serverapp.viewmodel
 
 import android.app.Application
-import android.app.Dialog
 import android.net.Uri
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.asFlow
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import database.AppDatabase
 import helpers.SharedPreferencesHelper

@@ -44,7 +44,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
         if(sdCardURI==null && internalURI==null){
             response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "No Root Folder Selected")
-            return response;
+            return response
         }
         when(url){
 
@@ -142,8 +142,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 if (!fileIdStr.isNullOrBlank()) {
                     try {
                         val fileId=fileIdStr.toLong()
-                        var thumbnail=database.fileDao().getScreenshotData(fileId);
-                        var exists=true;
+                        var thumbnail=database.fileDao().getScreenshotData(fileId)
+                        var exists=true
                         if(thumbnail==null){
                             thumbnail=""
                             exists=false
@@ -169,7 +169,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     override fun serve(session: IHTTPSession): Response {
 
         var response: Response=newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
-        var url= session.uri ?: return response;
+        var url= session.uri ?: return response
         val uiServerLocation=prefHandler.getFrontEndUrl()
         val uiServerMode=prefHandler.getUIServerMode()
         if(url.startsWith("/server")){
@@ -193,7 +193,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         if(!backEndUrl.isNullOrBlank()){
             addCorsHeaders(response,backEndUrl)
         }
-        return response;
+        return response
     }
 
     private fun staticBuiltUI(url: String): Response{

@@ -58,7 +58,7 @@ fun Info(mainActivityViewModel: MainActivityViewModel){
                 StyledText(text = "$rowCount")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }";
+                val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }"
                 StyledText(text = uiServerModeText)
                 Spacer(Modifier.weight(1f))
                 Switch(
@@ -102,10 +102,7 @@ fun ServerCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
                 Button(
-                    onClick = buttonAction,
-                    modifier = Modifier
-                        .padding(5.dp)
-                        .width(180.dp)
+                    onClick = buttonAction
                 ) {
                     StyledText(text = buttonText)
                 }

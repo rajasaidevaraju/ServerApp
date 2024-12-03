@@ -8,14 +8,13 @@ import database.AppDatabase
 import fi.iki.elonen.NanoHTTPD
 import helpers.FileHandlerHelper
 import java.io.IOException
-import kotlin.math.log
 
 class FileService {
 
-    private val mimeType = "video/mp4";
+    private val mimeType = "video/mp4"
 
     fun scanFolder(selectedDirectoryUri: Uri, fileHandlerHelper: FileHandlerHelper, database:AppDatabase): List<Long> {
-        val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri);
+        val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
         val rows=database.fileDao().insertFiles(fileMetas)
         return rows
     }
@@ -64,7 +63,7 @@ class FileService {
                 NanoHTTPD.Response.Status.OK,
                 mimeType,
                 inputStream
-            );
+            )
             response.addHeader("Content-Type", mimeType)
             response.addHeader("Content-Length", fileSize.toString())
             return response
@@ -109,12 +108,12 @@ class FileService {
                 NanoHTTPD.Response.Status.PARTIAL_CONTENT,
                 mimeType,
                 inputStream
-            );
+            )
             Log.d("MKServer Video","INSIDE RETURN PARTIAL-RESPONSE and rangeHeader $rangeHeader")
             Log.d("MKServer Video"," Start:$start End:$end FileLength:$fileLength")
             response.addHeader("Content-Type", mimeType)
             response.addHeader("Content-Length", contentLength.toString())
-            response.addHeader("Content-Range", "bytes $start-$end/$fileLength");
+            response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
             return response
 
         } catch (e: IOException) {

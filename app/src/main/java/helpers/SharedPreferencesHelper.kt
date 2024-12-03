@@ -11,7 +11,6 @@ class SharedPreferencesHelper(private val context: Context) {
     private val frontEndKey="front_end_url"
     private val backEndKey="back_end_url"
     private val uiServerModeKey="ui_server_mode"
-    private val PREFS_KEY_SERVER_STATE = "SERVER_STATE_KEY" // Key to identify server state in SharedPreferences
     val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
     private fun getURI(uriKey:String):Uri?{

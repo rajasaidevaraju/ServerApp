@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startServer() {
         val serviceIntent = Intent(this, ServerService::class.java)
-        startService(serviceIntent)
+        startForegroundService(serviceIntent)
     }
 
     private fun stopServer() {

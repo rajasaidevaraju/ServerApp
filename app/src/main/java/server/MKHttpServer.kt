@@ -218,6 +218,28 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                             if(fileService.getFreeInternalMemorySize()-contentLength<threeGBInBytes){
                                 response = newFixedLengthResponse(ExtendedStatus.INSUFFICIENT_STORAGE, MIME_JSON, gson.toJson(mapOf("message" to "Not enough storage.")))
                             }else{
+
+                                val boundary = extractBoundary(session.headers)
+                                if(boundary==null){
+                                    val responseContent = mapOf("message" to "No Boundary in headers")
+                                    return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
+                                }else{
+                                    val filename="defaultFIleName${formatter.format(Instant.now())}.mp4"
+                                    val destinationFile=destinationDir.createFile("video/mp4", filename)
+                                    val destinationOutputStream = destinationFile?.uri?.let { context.contentResolver.openOutputStream(it) }
+                                    if(destinationOutputStream!=null){
+                                        networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream)
+                                        val responseContent = mapOf("message" to "File Stored Successfully")
+                                        response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
+                                    }else{
+                                        val responseContent = mapOf("message" to "File creation failed")
+                                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                                        return response
+                                    }
+
+                                }
+
+                                /*
                                 val files: Map<String, String> = HashMap()
                                 session.parseBody(files)
                                 val keys: Set<String> = files.keys
@@ -246,17 +268,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                                         response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
                                         return response
                                     }
-                                }
-                                val responseContent = mapOf("message" to "File Stored Successfully")
-                                response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
-
-                                }
-
-                        }catch (exception:IllegalArgumentException){
-                            response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON,
-                                gson.toJson(mapOf("message" to "Server configuration error: File path not configured correctly.",
-                                    "error" to getExceptionString(exception)
-                                )))
+                                }*/
+                            }
                         }catch(exception:Exception){
                             val responseContent=mapOf(
                                 "message" to "Could not complete file upload",
@@ -347,7 +360,12 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         val printWriter = PrintWriter(stringWriter)
         exception.printStackTrace(printWriter)
         return stringWriter.toString()
-
+    }
+    private fun extractBoundary(headers:Map<String, String>):String?{
+        val contentType=headers.get("content-type")
+        // example of contentType multipart/form-data; boundary=----WebKitFormBoundaryuRqy8BtHu1nT2dfA
+        val regex = "boundary=(.+)".toRegex()
+        return contentType?.let { regex.find(it)?.groups?.get(1)?.value }
     }
 }
 

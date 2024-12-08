@@ -7,13 +7,87 @@ import fi.iki.elonen.NanoHTTPD.MIME_PLAINTEXT
 import fi.iki.elonen.NanoHTTPD.Response
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
 
 class NetworkService {
+
+
+
+    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream) {
+        val boundaryBytes = "--$boundary".toByteArray(Charsets.UTF_8)
+        val endBoundaryBytes = "--$boundary--".toByteArray(Charsets.UTF_8)
+        val boundryPattern=createPartialMatchTable(boundaryBytes)
+        val endBoundryPattern=createPartialMatchTable(endBoundaryBytes)
+        val buffer = ByteArray(16384)
+        var bytesRead: Int
+        try {
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
+            }
+        }finally {
+            outputStream.flush()
+            outputStream.close()
+            inputStream.close()
+        }
+
+    }
+
+    /*fun extractHeaders(data: ByteArray): String {
+        val headersEndIndex = data.indexOf("\r\n\r\n".toByteArray())
+        return if (headersEndIndex != -1) {
+            String(data.copyOfRange(0, headersEndIndex), Charsets.UTF_8)
+        } else {
+            ""
+        }
+    }*/
+
+    fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+        if (this.size < prefix.size) return false
+        for (i in prefix.indices) {
+            if (this[i] != prefix[i]) return false
+        }
+        return true
+    }
+
+    fun createPartialMatchTable(pattern: ByteArray): IntArray {
+        val table = IntArray(pattern.size)
+        var j = 0
+        for (i in 1 until pattern.size) {
+            while (j > 0 && pattern[i] != pattern[j]) {
+                j = table[j - 1]
+            }
+            if (pattern[i] == pattern[j]) {
+                j++
+            }
+            table[i] = j
+        }
+        return table
+    }
+
+    fun searchPattern(data: ByteArray, pattern: ByteArray, table: IntArray): Int {
+        var j = 0
+        for (i in data.indices) {
+            while (j > 0 && data[i] != pattern[j]) {
+                j = table[j - 1]
+            }
+            if (data[i] == pattern[j]) {
+                j++
+                if (j == pattern.size) {
+                    return i - pattern.size + 1
+                }
+            }
+        }
+        return -1
+    }
+
+
+
 
     fun proxyRequestToUiServer(uiServerLocation: String, uri: String, session: IHTTPSession): Response {
         Log.d("MKServer UI REQUEST START", "http://$uiServerLocation$uri")

@@ -6,6 +6,8 @@ import android.os.Environment
 import android.os.StatFs
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import database.AppDatabase
 import fi.iki.elonen.NanoHTTPD
 import helpers.FileHandlerHelper
@@ -36,14 +38,16 @@ class FileService {
 
         val fileMeta = database.fileDao().getFileById(fileId)
         val file = fileMeta?.let { DocumentFile.fromTreeUri(context, it.fileUri) }
+        val gson: Gson = GsonBuilder().create()
 
-        val fileNotFoundResponse = NanoHTTPD.newFixedLengthResponse(
-            NanoHTTPD.Response.Status.NOT_FOUND,
-            "text/plain",
-            "File not found or inaccessible"
-        )
 
         if (fileMeta == null || file == null || !file.isFile) {
+            val responseContent= mapOf("message" to "File not found or inaccessible")
+            val fileNotFoundResponse = NanoHTTPD.newFixedLengthResponse(
+                NanoHTTPD.Response.Status.NOT_FOUND,
+                "application/json",
+                gson.toJson(responseContent)
+            )
             return fileNotFoundResponse
         }
 
@@ -59,10 +63,11 @@ class FileService {
 
         } catch (e: Exception) {
             e.printStackTrace()
+            val responseContent= mapOf("message" to "Error when streaming file")
             return NanoHTTPD.newFixedLengthResponse(
-                NanoHTTPD.Response.Status.INTERNAL_ERROR,
-                "text/plain",
-                "Internal Server Error"
+                NanoHTTPD.Response.Status.NOT_FOUND,
+                "application/json",
+                gson.toJson(responseContent)
             )
         }
     }

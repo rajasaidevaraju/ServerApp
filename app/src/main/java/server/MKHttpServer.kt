@@ -1,5 +1,6 @@
 import android.content.Context
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
@@ -11,10 +12,9 @@ import server.service.DBService
 import server.service.FileService
 import server.service.NetworkService
 import java.io.File
+import java.io.FileInputStream
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -205,70 +205,73 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
             }
             "/upload"->{
-                if (session.method == Method.POST && internalURI != null) {
-                    try{
-                        val destinationDir = File(internalURI.toString())
-                        if (!destinationDir.exists()) {
-                            destinationDir.mkdirs();
-                        }
-                        val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
-                            .withZone(ZoneId.of("UTC"))
-                        val filename="defaultFIleName ${formatter.format(Instant.now())}.mp4"
-                        val contentLength = session.headers["content-length"]!!
-                            .toLong()
-                        val threeGBInBytes = 3L * 1024 * 1024 * 1024
-                        if(fileService.getFreeInternalMemorySize()-contentLength<threeGBInBytes){
-                            response = newFixedLengthResponse(ExtendedStatus.INSUFFICIENT_STORAGE, MIME_JSON, gson.toJson(mapOf("message" to "Not enough storage.")))
-                        }else{
-                            /* old code to store full incoming request to a file
-                            val outputFile = File(destinationDir, filename)
-                            session.parameters
-                            session.inputStream.use { inputStream->
-                                FileOutputStream(outputFile).use { outputStream ->
-                                    val buffer = ByteArray(8192) // 8 KB buffer
-                                    var bytesRead: Int
-                                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                                        outputStream.write(buffer, 0, bytesRead)
-                                    } 
+
+                if (internalURI != null) {
+                    val destinationDir= DocumentFile.fromTreeUri(context,internalURI)
+                    if(destinationDir!=null){
+                        try{
+                            val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
+                                .withZone(ZoneId.of("UTC"))
+                            val contentLength = session.headers["content-length"]!!
+                                .toLong()
+                            val threeGBInBytes = 3L * 1024 * 1024 * 1024
+                            if(fileService.getFreeInternalMemorySize()-contentLength<threeGBInBytes){
+                                response = newFixedLengthResponse(ExtendedStatus.INSUFFICIENT_STORAGE, MIME_JSON, gson.toJson(mapOf("message" to "Not enough storage.")))
+                            }else{
+                                val files: Map<String, String> = HashMap()
+                                session.parseBody(files)
+                                val keys: Set<String> = files.keys
+                                for (key in keys) {
+                                    val location = files[key]
+                                    Log.d("FileUpload", "Key: $key, File Path: $location")
+                                    val filename="defaultFIleName${formatter.format(Instant.now())}.mp4"
+                                    val destinationFile=destinationDir.createFile("video/mp4", filename)
+                                    if(destinationFile!=null && location !=null){
+                                        val destinationOutputStream =context.contentResolver.openOutputStream(destinationFile.uri)
+                                        val tempFile = File(location)
+                                        val tempFIleInputStream=FileInputStream(tempFile)
+                                        tempFIleInputStream.use { input ->
+                                            destinationOutputStream.use { output ->
+                                                if (output != null) {
+                                                    input.copyTo(output)
+                                                }else{
+                                                    val responseContent = mapOf("message" to "Could not get output stream")
+                                                    response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                                                    return response
+                                                }
+                                            }
+                                        }
+                                    }else{
+                                        val responseContent = mapOf("message" to "File creation failed")
+                                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                                        return response
+                                    }
                                 }
-                            }*/
-                            val files: Map<String, String> = HashMap()
-                            session.parseBody(files)
-                            val keys: Set<String> = files.keys
-                            for (key in keys) {
-                                val name = key
-                                val loaction = files[key]
-                                Log.d("FileUpload", "Key: $name, File Path: $loaction")
-                                /*val tempfile = File(loaction)
-                                Files.copy(
-                                    tempfile.toPath(),
-                                    File("destinamtio_path$name").toPath(),
-                                    StandardCopyOption.REPLACE_EXISTING
-                                )*/
-                            }
+                                val responseContent = mapOf("message" to "File Stored Successfully")
+                                response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
 
-                            val responseContent = mapOf("message" to "File Stored Successfully")
-                            response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
+                                }
+
+                        }catch (exception:IllegalArgumentException){
+                            response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON,
+                                gson.toJson(mapOf("message" to "Server configuration error: File path not configured correctly.",
+                                    "error" to getExceptionString(exception)
+                                )))
+                        }catch(exception:Exception){
+                            val responseContent=mapOf(
+                                "message" to "Could not complete file upload",
+                                "error" to getExceptionString(exception)
+                            )
+                            response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
                         }
-
-                    }catch (exception:IllegalArgumentException){
-                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Server configuration error: File path not configured correctly.")))
-                    }catch(exception:Exception){
-                        val responseContent=mapOf(
-                            "message" to "Could not complete file upload",
-                            "error" to getExceptionString(exception)
-                        )
-                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                    }else{
+                        val responseContent = mapOf("message" to "Server configuration error: Save path not configured.")
+                        response = newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
                     }
 
                 } else {
-                    if (session.method != Method.POST) {
-                        val responseContent = mapOf("message" to "Method Not Allowed")
-                        response = newFixedLengthResponse(Status.METHOD_NOT_ALLOWED, MIME_JSON, gson.toJson(responseContent))
-                    } else if (internalURI == null) {
-                        val responseContent = mapOf("message" to "Server configuration error: File path not configured.")
-                        response = newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
-                    }
+                    val responseContent = mapOf("message" to "Server configuration error: Save path not configured.")
+                    response = newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
                 }
             }
         }

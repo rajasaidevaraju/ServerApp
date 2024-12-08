@@ -83,7 +83,6 @@ class FileHandlerHelper(private val context: Context){
             val inputStream = assetManager.open("web/$filePath") // Adjust the path to match your assets folder structure
             val fileBytes = inputStream.readBytes()
             val mimeType = getMimeType(filePath)
-            Log.d("MKHttpServer", "Successfully served filePath:$filePath")
             newFixedLengthResponse(NanoHTTPD.Response.Status.OK, mimeType, fileBytes.inputStream(), fileBytes.size.toLong())
         } catch (e: Exception) {
             Log.e("MKHttpServer", "Error serving file: $filePath", e)

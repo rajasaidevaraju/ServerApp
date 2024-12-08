@@ -1,16 +1,47 @@
-import helpers.FileHandlerHelper
-import helpers.SharedPreferencesHelper
-import fi.iki.elonen.NanoHTTPD
 import android.content.Context
 import android.util.Log
-import database.AppDatabase
-import server.service.FileService
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import org.json.JSONObject
+import database.AppDatabase
+import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.Response.Status
+import helpers.FileHandlerHelper
+import helpers.SharedPreferencesHelper
 import server.service.DBService
+import server.service.FileService
 import server.service.NetworkService
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
+
+enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String) :
+    NanoHTTPD.Response.IStatus {
+    INSUFFICIENT_STORAGE(507 , "Insufficient Storage") {
+        override fun getDescription(): String {
+            return "" + this.requestStatusExt + " " + this.descriptionExt
+        }
+
+        override fun getRequestStatus(): Int {
+            return this.requestStatusExt
+        }
+    };
+
+    companion object {
+        fun lookup(requestStatus: Int): ExtendedStatus? {
+            return entries.find { it.requestStatusExt == requestStatus }
+        }
+    }
+
+    override fun toString(): String {
+        return "$requestStatusExt $descriptionExt"
+    }
+}
 
 class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private var isRunning = false
@@ -38,13 +69,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     }
 
     private fun handleServerRequest(url: String, session: IHTTPSession): Response{
-        var response: Response=newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
+        var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
         val sdCardURI = prefHandler.getSDCardURI()
         val internalURI = prefHandler.getInternalURI()
         val gson: Gson = GsonBuilder().create()
 
         if(sdCardURI==null && internalURI==null){
-            response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "No Root Folder Selected")
+            response= newFixedLengthResponse(Status.NOT_FOUND, MIME_PLAINTEXT, "No Root Folder Selected")
             return response
         }
         when(url){
@@ -52,7 +83,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             "/status"->{
                 val responseContent = mapOf("alive" to true)
                 val jsonContent: String = gson.toJson(responseContent)
-                response = newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
 
             "/files"->{
@@ -75,7 +106,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     )
                 )
                 val jsonContent: String = gson.toJson(responseContent)
-                response = newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
             "/file"->{
                 val params = session.parameters
@@ -90,13 +121,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     } catch (e: NumberFormatException) {
                         val responseContent = mapOf("message" to "Invalid File ID")
                         val jsonContent: String = gson.toJson(responseContent)
-                        response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON,jsonContent )
+                        response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON,jsonContent )
                     }
                 }
                 else{
                     val responseContent = mapOf("message" to "Improper url")
                     val jsonContent: String = gson.toJson(responseContent)
-                    response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, jsonContent)
+                    response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, jsonContent)
                 }
             }
             "/scan"->{
@@ -116,13 +147,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     "inserted" to rows.size-notInsertedRows
                     )
                 val jsonContent: String = gson.toJson(responseContent)
-                response= newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                response= newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
             "/clean"->{
                 val removedEntries=dbService.removeAbsentEntries(context,database.fileDao())
                 val responseContent = mapOf("rows_deleted" to removedEntries)
                 val jsonContent: String = gson.toJson(responseContent)
-                response= newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                response= newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
             "/upload-screenshot"->{
                 try {
@@ -136,13 +167,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         "message" to "Screenshot inserted or updated for file with ID $insertedFileId",
                         "fileId" to insertedFileId)
                     val jsonContent: String = gson.toJson(responseContent)
-                    response= newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                    response= newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
 
                 }catch (error:Exception){
                     val responseContent = mapOf("message" to "screenshot insert or update operation failed")
                     val jsonContent: String = gson.toJson(responseContent)
                     Log.d("fileId error",error.toString())
-                    response=newFixedLengthResponse(Response.Status.INTERNAL_ERROR,MIME_JSON,jsonContent)
+                    response=newFixedLengthResponse(Status.INTERNAL_ERROR,MIME_JSON,jsonContent)
 
                 }
             }
@@ -162,29 +193,82 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         val responseContent = mapOf(
                             "imageData" to thumbnail,
                             "exists" to exists)
-                        val jsonContent: String = gson.toJson(responseContent)
-                        response= newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+                        response= newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
                     } catch (e: NumberFormatException) {
                         val responseContent = mapOf("message" to "Invalid File ID")
-                        val jsonContent: String = gson.toJson(responseContent)
-                        response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, jsonContent)
+                        response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
                     }
                 }else{
                     val responseContent = mapOf("message" to "Improper url")
                     val jsonContent: String = gson.toJson(responseContent)
-                    response= newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, jsonContent)
+                    response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, jsonContent)
                 }
             }
             "/upload"->{
-                if(prefHandler.getInternalURI()==null){
-                    val responseContent = mapOf(
-                        "message" to "Server configuration error: File path not configured.",
-                        "error" to "File upload failed"
-                    )
-                    val jsonContent: String = gson.toJson(responseContent)
-                    response= newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_JSON, jsonContent)
-                }else{
-                    //write code here
+                if (session.method == Method.POST && internalURI != null) {
+                    try{
+                        val destinationDir = File(internalURI.toString())
+                        if (!destinationDir.exists()) {
+                            destinationDir.mkdirs();
+                        }
+                        val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
+                            .withZone(ZoneId.of("UTC"))
+                        val filename="defaultFIleName ${formatter.format(Instant.now())}.mp4"
+                        val contentLength = session.headers["content-length"]!!
+                            .toLong()
+                        val threeGBInBytes = 3L * 1024 * 1024 * 1024
+                        if(fileService.getFreeInternalMemorySize()-contentLength<threeGBInBytes){
+                            response = newFixedLengthResponse(ExtendedStatus.INSUFFICIENT_STORAGE, MIME_JSON, gson.toJson(mapOf("message" to "Not enough storage.")))
+                        }else{
+                            /* old code to store full incoming request to a file
+                            val outputFile = File(destinationDir, filename)
+                            session.parameters
+                            session.inputStream.use { inputStream->
+                                FileOutputStream(outputFile).use { outputStream ->
+                                    val buffer = ByteArray(8192) // 8 KB buffer
+                                    var bytesRead: Int
+                                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                        outputStream.write(buffer, 0, bytesRead)
+                                    } 
+                                }
+                            }*/
+                            val files: Map<String, String> = HashMap()
+                            session.parseBody(files)
+                            val keys: Set<String> = files.keys
+                            for (key in keys) {
+                                val name = key
+                                val loaction = files[key]
+                                Log.d("FileUpload", "Key: $name, File Path: $loaction")
+                                /*val tempfile = File(loaction)
+                                Files.copy(
+                                    tempfile.toPath(),
+                                    File("destinamtio_path$name").toPath(),
+                                    StandardCopyOption.REPLACE_EXISTING
+                                )*/
+                            }
+
+                            val responseContent = mapOf("message" to "File Stored Successfully")
+                            response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
+                        }
+
+                    }catch (exception:IllegalArgumentException){
+                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Server configuration error: File path not configured correctly.")))
+                    }catch(exception:Exception){
+                        val responseContent=mapOf(
+                            "message" to "Could not complete file upload",
+                            "error" to getExceptionString(exception)
+                        )
+                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                    }
+
+                } else {
+                    if (session.method != Method.POST) {
+                        val responseContent = mapOf("message" to "Method Not Allowed")
+                        response = newFixedLengthResponse(Status.METHOD_NOT_ALLOWED, MIME_JSON, gson.toJson(responseContent))
+                    } else if (internalURI == null) {
+                        val responseContent = mapOf("message" to "Server configuration error: File path not configured.")
+                        response = newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
+                    }
                 }
             }
         }
@@ -198,7 +282,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         val uiServerLocation=prefHandler.getFrontEndUrl()
         val uiServerMode=prefHandler.getUIServerMode()
         val gson: Gson = GsonBuilder().create()
-        var response: Response=newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "The requested resource could not be found")))
+        var responseContent=mapOf("message" to "The requested resource could not be found")
+        var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
         var url= session.uri ?: return response
 
         if(url.startsWith("/server")){
@@ -207,11 +292,12 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         }
         else{
 
-            if(uiServerMode==false){
+            if(!uiServerMode){
                 response=staticBuiltUI(url)
             }else{
                 if(uiServerLocation==null){
-                    response=newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "UI Server not found")))
+                    responseContent=mapOf("message" to "UI Server not found")
+                    response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
 
                 }else{
                     response=networkService.proxyRequestToUiServer(uiServerLocation,url,session)
@@ -241,7 +327,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             filePath=filePath.replaceFirst("_next","next")
         }
         return fileHandlerHelper.serveStaticFile(filePath) ?: newFixedLengthResponse(
-            Response.Status.NOT_FOUND,
+            Status.NOT_FOUND,
             "text/plain",
             "File not found"
         )
@@ -251,6 +337,14 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         response.addHeader("Access-Control-Allow-Origin", backEndUrl)
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "origin, content-type, accept, authorization")
+    }
+
+    private fun getExceptionString(exception:Exception):String{
+        val stringWriter = StringWriter()
+        val printWriter = PrintWriter(stringWriter)
+        exception.printStackTrace(printWriter)
+        return stringWriter.toString()
+
     }
 }
 

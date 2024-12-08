@@ -2,6 +2,8 @@ package server.service
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import android.os.StatFs
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.AppDatabase
@@ -9,9 +11,20 @@ import fi.iki.elonen.NanoHTTPD
 import helpers.FileHandlerHelper
 import java.io.IOException
 
+
 class FileService {
 
     private val mimeType = "video/mp4"
+
+    fun getFreeInternalMemorySize(): Long {
+        val path = Environment.getDataDirectory()
+        val stat = StatFs(path.path)
+        val blockSize = stat.blockSizeLong
+        val availableBlocks = stat.availableBlocksLong
+        val freeSpace = availableBlocks * blockSize
+        //val freeSpaceInMB = freeSpace / (1024 * 1024)
+        return freeSpace
+    }
 
     fun scanFolder(selectedDirectoryUri: Uri, fileHandlerHelper: FileHandlerHelper, database:AppDatabase): List<Long> {
         val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)

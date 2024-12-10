@@ -10,8 +10,12 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
 import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.Response.Status
+import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.FileHandlerHelper
+import java.io.FileInputStream
 import java.io.IOException
+import java.io.InputStream
 
 
 class FileService {
@@ -76,13 +80,14 @@ class FileService {
     private fun getFullResponse(file: DocumentFile,context:Context): NanoHTTPD.Response {
         try {
             val inputStream = context.contentResolver.openInputStream(file.uri)
+
             val fileSize = file.length()
             val response = NanoHTTPD.newChunkedResponse(
                 NanoHTTPD.Response.Status.OK,
                 mimeType,
                 inputStream
             )
-            response.addHeader("Content-Type", mimeType)
+            response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", fileSize.toString())
             return response
         }catch (e: Exception) {
@@ -101,7 +106,16 @@ class FileService {
 
         try {
 
-            val inputStream = context.contentResolver.openInputStream(file.uri)
+            // Open the file descriptor and get the file channel
+            val pfd = context.contentResolver.openFileDescriptor(file.uri, "r")
+            val fileDescriptor = pfd?.fileDescriptor
+            val fileInputStream = FileInputStream(fileDescriptor)
+            val fileChannel = fileInputStream.channel
+
+            //val inputStream:InputStream = context.contentResolver.openInputStream(file.uri)
+            //inputStream.skip(1)
+
+
             val rangeValue = rangeHeader.trim().substring("bytes=".length)
             val start: Long
             var end: Long
@@ -118,30 +132,30 @@ class FileService {
             if (end > fileLength - 1) {
                 end = fileLength - 1
             }
-            if (inputStream != null) {
-                inputStream.skip(start)
-            }
+
+
+            fileInputStream.skip(start)
             val contentLength = end - start + 1
+
+
             val response = NanoHTTPD.newChunkedResponse(
-                NanoHTTPD.Response.Status.PARTIAL_CONTENT,
+                Status.PARTIAL_CONTENT,
                 mimeType,
-                inputStream
+                fileInputStream
             )
             Log.d("MKServer Video","INSIDE RETURN PARTIAL-RESPONSE and rangeHeader $rangeHeader")
             Log.d("MKServer Video"," Start:$start End:$end FileLength:$fileLength")
-            response.addHeader("Content-Type", mimeType)
+            response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", contentLength.toString())
             response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
             return response
 
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             e.printStackTrace()
-            return NanoHTTPD.newFixedLengthResponse(
-                NanoHTTPD.Response.Status.INTERNAL_ERROR,
-                "text/plain",
-                "Internal Server Error"
-            )
-
+            val gson: Gson = GsonBuilder().create()
+            val responseContent = mapOf("message" to "Error while seeking for file")
+            val jsonContent: String = gson.toJson(responseContent)
+            return newFixedLengthResponse(Status.INTERNAL_ERROR, "application/json",jsonContent )
         }
     }
 

@@ -25,7 +25,7 @@ interface FileDAO {
     @Query("SELECT fileId, file_name FROM file_meta")
     fun getSimplifiedFilesMeta(): List<SimplifiedFileMeta>
 
-    @Query("SELECT fileId, file_name FROM file_meta LIMIT :pageSize OFFSET :offset")
+    @Query("SELECT fileId, file_name FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
     fun getSimplifiedFilesMetaPagenated(offset:Int, pageSize:Int): List<SimplifiedFileMeta>
 
     @Query("SELECT COUNT(*) FROM file_meta")

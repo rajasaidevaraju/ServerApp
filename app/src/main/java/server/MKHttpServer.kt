@@ -4,6 +4,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
+import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import helpers.FileHandlerHelper
@@ -11,8 +12,6 @@ import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
 import server.service.NetworkService
-import java.io.File
-import java.io.FileInputStream
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
@@ -75,7 +74,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         val gson: Gson = GsonBuilder().create()
 
         if(sdCardURI==null && internalURI==null){
-            response= newFixedLengthResponse(Status.NOT_FOUND, MIME_PLAINTEXT, "No Root Folder Selected")
+            val responseContent = mapOf("message" to "No Root Folder Selected")
+            val jsonContent: String = gson.toJson(responseContent)
+            response = newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, jsonContent)
             return response
         }
         when(url){
@@ -228,9 +229,29 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                                     val destinationFile=destinationDir.createFile("video/mp4", filename)
                                     val destinationOutputStream = destinationFile?.uri?.let { context.contentResolver.openOutputStream(it) }
                                     if(destinationOutputStream!=null){
-                                        networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength)
-                                        val responseContent = mapOf("message" to "File Stored Successfully")
+                                        val returnFilename=networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength)
+                                        var responseContent = mapOf("message" to "File Stored Successfully")
+                                        var exists=false;
+                                        for (file in destinationDir.listFiles()) {
+                                            if (file.name == returnFilename) {
+                                                responseContent=mapOf("message" to "File Stored Successfully, But File Name Already Exists ")
+                                                exists=true
+                                            }
+                                        }
+                                        val fileMeta:FileMeta
+                                        if(!exists){
+                                            val success=destinationFile.renameTo(returnFilename)
+                                            if(success){
+                                                fileMeta=FileMeta(fileName=returnFilename, fileUri = destinationFile.uri)
+                                            }else{
+                                                fileMeta=FileMeta(fileName=filename, fileUri = destinationFile.uri)
+                                            }
+                                        }else{
+                                            fileMeta=FileMeta(fileName=filename, fileUri = destinationFile.uri)
+                                        }
+                                        database.fileDao().insertFile(fileMeta)
                                         response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
+
                                     }else{
                                         val responseContent = mapOf("message" to "File creation failed")
                                         response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
@@ -239,38 +260,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
                                 }
 
-                                /*
-                                val files: Map<String, String> = HashMap()
-                                session.parseBody(files)
-                                val keys: Set<String> = files.keys
-                                for (key in keys) {
-                                    val location = files[key]
-                                    Log.d("FileUpload", "Key: $key, File Path: $location")
-                                    val filename="defaultFIleName${formatter.format(Instant.now())}.mp4"
-                                    val destinationFile=destinationDir.createFile("video/mp4", filename)
-                                    if(destinationFile!=null && location !=null){
-                                        val destinationOutputStream =context.contentResolver.openOutputStream(destinationFile.uri)
-                                        val tempFile = File(location)
-                                        val tempFIleInputStream=FileInputStream(tempFile)
-                                        tempFIleInputStream.use { input ->
-                                            destinationOutputStream.use { output ->
-                                                if (output != null) {
-                                                    input.copyTo(output)
-                                                }else{
-                                                    val responseContent = mapOf("message" to "Could not get output stream")
-                                                    response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
-                                                    return response
-                                                }
-                                            }
-                                        }
-                                    }else{
-                                        val responseContent = mapOf("message" to "File creation failed")
-                                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
-                                        return response
-                                    }
-                                }*/
                             }
                         }catch(exception:Exception){
+                            Log.d("exception",getExceptionString(exception))
                             val responseContent=mapOf(
                                 "message" to "Could not complete file upload",
                                 "error" to getExceptionString(exception)

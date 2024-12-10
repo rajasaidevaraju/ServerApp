@@ -19,9 +19,9 @@ class NetworkService {
 
 
 
-    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long) {
-        val boundaryBytes = """--$boundary\r\n""".toByteArray(Charsets.UTF_8)
-        val endBoundaryBytes = """\r\n--$boundary--""".toByteArray(Charsets.UTF_8)
+    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long):String {
+        val boundaryBytes = "--$boundary\r\n".toByteArray(Charsets.UTF_8)
+        val endBoundaryBytes = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
 
         var buffer = ByteArray(16384)
         var bytesRead: Int=0
@@ -52,16 +52,16 @@ class NetworkService {
                     headersFound=true;
                     bytesRead-=offset
                 }
-
+                //Log.d("upload portion","bytesRead:$bytesRead")
                 outputStream.write(buffer, offset, bytesRead)
+
             }
-            Log.d("File Name",fileName)
+            return fileName
         }
         catch (exception:Exception){
             throw exception
         }finally {
             outputStream.close()
-            inputStream.close()
         }
 
     }
@@ -74,7 +74,7 @@ class NetworkService {
 
         val fileName= extractFileName(data) ?: throw Exception("FileName not found in from data")
 
-        val breakerArray="""\r\n\r\n""".toByteArray()
+        val breakerArray="\r\n\r\n".toByteArray()
         var index=data.indexOf(breakerArray)
         if(index==-1){
             throw Exception("Improper Format of Form Data")

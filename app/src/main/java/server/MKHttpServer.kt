@@ -228,7 +228,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                                     val destinationFile=destinationDir.createFile("video/mp4", filename)
                                     val destinationOutputStream = destinationFile?.uri?.let { context.contentResolver.openOutputStream(it) }
                                     if(destinationOutputStream!=null){
-                                        networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream)
+                                        networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength)
                                         val responseContent = mapOf("message" to "File Stored Successfully")
                                         response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
                                     }else{

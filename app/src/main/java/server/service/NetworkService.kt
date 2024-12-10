@@ -19,35 +19,89 @@ class NetworkService {
 
 
 
-    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream) {
-        val boundaryBytes = "--$boundary".toByteArray(Charsets.UTF_8)
-        val endBoundaryBytes = "--$boundary--".toByteArray(Charsets.UTF_8)
-        val boundryPattern=createPartialMatchTable(boundaryBytes)
-        val endBoundryPattern=createPartialMatchTable(endBoundaryBytes)
-        val buffer = ByteArray(16384)
-        var bytesRead: Int
+    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long) {
+        val boundaryBytes = """--$boundary\r\n""".toByteArray(Charsets.UTF_8)
+        val endBoundaryBytes = """\r\n--$boundary--""".toByteArray(Charsets.UTF_8)
+
+        var buffer = ByteArray(16384)
+        var bytesRead: Int=0
+        var totalBytesRead: Long = 0
+        var headersFound=false
+        var fileName:String=""
         try {
-            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                outputStream.write(buffer, 0, bytesRead)
+            while (totalBytesRead < contentLength) {
+                var offset=0
+                bytesRead = inputStream.read(buffer, 0, buffer.size)
+
+                if (bytesRead == -1) break
+
+                totalBytesRead += bytesRead
+
+                //remove the trailing boundary
+                if(totalBytesRead>=contentLength){
+                    if(!buffer.endsWith(endBoundaryBytes,bytesRead)){
+                        throw Exception("Ending Boundary not found")
+                    }
+                    bytesRead -= endBoundaryBytes.size
+                }
+
+                if(!headersFound){
+                    val extractedData=extractHeaders(buffer,boundaryBytes)
+                    fileName=extractedData.second
+                    offset=extractedData.first
+                    headersFound=true;
+                    bytesRead-=offset
+                }
+
+                outputStream.write(buffer, offset, bytesRead)
             }
+            Log.d("File Name",fileName)
+        }
+        catch (exception:Exception){
+            throw exception
         }finally {
-            outputStream.flush()
             outputStream.close()
             inputStream.close()
         }
 
     }
 
-    /*fun extractHeaders(data: ByteArray): String {
-        val headersEndIndex = data.indexOf("\r\n\r\n".toByteArray())
-        return if (headersEndIndex != -1) {
-            String(data.copyOfRange(0, headersEndIndex), Charsets.UTF_8)
-        } else {
-            ""
-        }
-    }*/
+    private fun extractHeaders(data: ByteArray, boundaryByes: ByteArray): Pair<Int,String> {
 
-    fun ByteArray.startsWith(prefix: ByteArray): Boolean {
+        if(!data.startsWith(boundaryByes)){
+            throw Exception("Boundary not found")
+        }
+
+        val fileName= extractFileName(data) ?: throw Exception("FileName not found in from data")
+
+        val breakerArray="""\r\n\r\n""".toByteArray()
+        var index=data.indexOf(breakerArray)
+        if(index==-1){
+            throw Exception("Improper Format of Form Data")
+        }
+        index += breakerArray.size
+
+        return Pair(index,fileName)
+    }
+
+    private fun extractFileName(data: ByteArray):String?{
+        // No need to convert full data to string as we can find it in the beginning
+        val slicedData=data.sliceArray(0 until 1000)
+        val str=String(slicedData)
+        val filenameRegex = Regex("""filename="([^"]+)"""")
+        return filenameRegex.find(str)?.groupValues?.get(1)
+    }
+
+    private fun ByteArray.indexOf(target: ByteArray, startIndex: Int = 0): Int {
+        for (i in startIndex..this.size - target.size) {
+            if (this.sliceArray(i until i + target.size).contentEquals(target)) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    private fun ByteArray.startsWith(prefix: ByteArray): Boolean {
         if (this.size < prefix.size) return false
         for (i in prefix.indices) {
             if (this[i] != prefix[i]) return false
@@ -55,38 +109,15 @@ class NetworkService {
         return true
     }
 
-    fun createPartialMatchTable(pattern: ByteArray): IntArray {
-        val table = IntArray(pattern.size)
-        var j = 0
-        for (i in 1 until pattern.size) {
-            while (j > 0 && pattern[i] != pattern[j]) {
-                j = table[j - 1]
-            }
-            if (pattern[i] == pattern[j]) {
-                j++
-            }
-            table[i] = j
-        }
-        return table
-    }
-
-    fun searchPattern(data: ByteArray, pattern: ByteArray, table: IntArray): Int {
-        var j = 0
-        for (i in data.indices) {
-            while (j > 0 && data[i] != pattern[j]) {
-                j = table[j - 1]
-            }
-            if (data[i] == pattern[j]) {
-                j++
-                if (j == pattern.size) {
-                    return i - pattern.size + 1
-                }
+    private fun ByteArray.endsWith(suffix: ByteArray,length:Int): Boolean {
+        if (suffix.size > length) return false
+        for (i in 0 until suffix.size) {
+            if (this[length - suffix.size + i] != suffix[i]) {
+                return false
             }
         }
-        return -1
+        return true
     }
-
-
 
 
     fun proxyRequestToUiServer(uiServerLocation: String, uri: String, session: IHTTPSession): Response {

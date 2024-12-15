@@ -92,7 +92,7 @@ class ServerService: Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)
-            .setSmallIcon(R.drawable.new_launcher_foreground) // Ensure this icon is valid
+            .setSmallIcon(R.drawable.notification_icon) // Ensure this icon is valid
             .build()
     }
 
@@ -102,7 +102,7 @@ class ServerService: Service() {
             isHeld=true
         }
         val notificationManager = getSystemService(NotificationManager::class.java)
-        val notification = buildNotification(TITLE, "Elapsed time: $elapsedTime\nWavelock Acquired:${isHeld}")
+        val notification = buildNotification(TITLE, "Elapsed time: $elapsedTime")
         notificationManager.notify(101, notification)
     }
 
@@ -116,11 +116,14 @@ class ServerService: Service() {
     private fun startServer() {
         if (!serverHandler.isAlive) {
             serverHandler.start()
-            val ipAddress=networkHandler.getIpAddress(this)
+            var ipAddress=networkHandler.getIpAddress(this)
             val broadcastIntent = Intent(SERVER_START_ACTION_NAME)
             prefHandler.storeBackEndUrl("$ipAddress:${serverHandler.listeningPort}")
             sendBroadcast(broadcastIntent)
             if(ipAddress!=null){
+                if(ipAddress == "null"){
+                    ipAddress="localhost"
+                }
                 Log.d("MKServer Address","Server Started with $ipAddress:${serverHandler.listeningPort}")
             }else{
                 Log.d("MKServer","Server live status:${serverHandler.isAlive}")

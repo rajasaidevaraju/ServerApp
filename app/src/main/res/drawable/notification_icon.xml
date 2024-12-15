@@ -1,0 +1,100 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <group android:scaleX="1"
+        android:scaleY="1"
+        android:translateX="1"
+        android:translateY="1">
+
+        <!-- Top Horizontal Line -->
+        <path
+            android:pathData="M2,6L24,6"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- First Rectangle Horizontal Line -->
+        <path
+            android:pathData="M2,12L24,12"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Connecting Curve between Top and First Rectangle -->
+        <path
+            android:pathData="M2,6L2,12"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M24,6L24,12"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Second Rectangle Horizontal Line -->
+        <path
+            android:pathData="M2,16L24,16"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Bottom Horizontal Line -->
+        <path
+            android:pathData="M2,22L24,22"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Connecting Curve between Second and Bottom Rectangle -->
+        <path
+            android:pathData="M2,16L2,22"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M24,16L24,22"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Left Vertical Dots -->
+        <path
+            android:pathData="M17,9L17,9"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M17,19L17,19"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+        <!-- Right Vertical Dots -->
+        <path
+            android:pathData="M20,9L20,9"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+        <path
+            android:pathData="M20,19L20,19"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2"
+            android:strokeColor="#ffffff"
+            android:strokeLineCap="round"/>
+
+    </group>
+</vector>

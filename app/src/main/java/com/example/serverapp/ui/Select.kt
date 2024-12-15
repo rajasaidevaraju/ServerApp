@@ -1,26 +1,30 @@
 package com.example.serverapp.ui
 
 
+import android.content.Context
+import android.content.Context.STORAGE_SERVICE
 import android.net.Uri
+import android.os.Environment
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat.getSystemService
 import com.example.serverapp.viewmodel.MainActivityViewModel
 import helpers.FileHandlerHelper
 
@@ -40,27 +44,27 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
                 .fillMaxWidth()
                 .padding(10.dp)
         ) {
+
             val sdCardFolderName=fileHandlerHelper.getFolderNameFromUri(sdCardUri)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledText("SD Card Folder")
-                Spacer(Modifier.weight(1f))
+            if(fileHandlerHelper.isSdCardAvailable()){
+
+                StyledText("SD Card Folder:")
                 if(sdCardFolderName==null){
                     FolderSelectButton(requestPermissionLauncherSDCard)
                 }else{
-                    StyledText(sdCardFolderName)
+                    Text(sdCardFolderName)
                 }
+                Text("")
             }
             val internalFolderName=fileHandlerHelper.getFolderNameFromUri(internalUri)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledText("Internal Memory Folder")
-                Spacer(Modifier.weight(1f))
-                if(internalFolderName==null){
-                    FolderSelectButton(requestPermissionLauncherInternal)
-                }else{
-                    StyledText(internalFolderName)
-                }
+            StyledText("Internal Memory Folder:")
+            if(internalFolderName==null){
+                FolderSelectButton(requestPermissionLauncherInternal)
+            }else{
+                Text(internalFolderName)
             }
+
         }
     }
 }
@@ -88,4 +92,11 @@ private fun StyledText(text: String) {
         fontWeight = FontWeight.Bold,
         fontSize=15.sp
     )
+}
+
+@Composable
+private fun NewLine(){
+    Row{
+
+    }
 }

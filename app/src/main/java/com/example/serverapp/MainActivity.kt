@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.example.serverapp.ui.theme.ServerAppTheme
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.serverapp.ui.BackendServer
 import com.example.serverapp.ui.FrontEndServer
 import com.example.serverapp.ui.Info
@@ -68,6 +71,7 @@ class MainActivity : ComponentActivity() {
             registerReceiver(receiver, serverIntentFilter)
 
         }
+
         setContent {
             ServerAppTheme {
                 Surface(

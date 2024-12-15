@@ -7,16 +7,100 @@
       android:scaleY="0.67"
       android:translateX="4.752"
       android:translateY="4.752">
+
+    <!-- Outer Rounded Rectangle -->
     <path
         android:pathData="M4.32,0L24.48,0A4.32,4.32 0,0 1,28.8 4.32L28.8,24.48A4.32,4.32 0,0 1,24.48 28.8L4.32,28.8A4.32,4.32 0,0 1,0 24.48L0,4.32A4.32,4.32 0,0 1,4.32 0z"
         android:strokeWidth="0"
         android:fillColor="#ffffff"/>
+
+    <!-- Top Horizontal Line -->
     <path
-        android:pathData="M20.4,9.4L20.41,9.4M17.4,9.4L17.41,9.4M20.4,19.4L20.41,19.4M17.4,19.4L17.41,19.4M8.4,12.4L20.4,12.4C21.332,12.4 21.798,12.4 22.165,12.248C22.655,12.045 23.045,11.655 23.248,11.165C23.4,10.798 23.4,10.332 23.4,9.4C23.4,8.468 23.4,8.002 23.248,7.635C23.045,7.145 22.655,6.755 22.165,6.552C21.798,6.4 21.332,6.4 20.4,6.4L8.4,6.4C7.468,6.4 7.002,6.4 6.635,6.552C6.145,6.755 5.755,7.145 5.552,7.635C5.4,8.002 5.4,8.468 5.4,9.4C5.4,10.332 5.4,10.798 5.552,11.165C5.755,11.655 6.145,12.045 6.635,12.248C7.002,12.4 7.468,12.4 8.4,12.4ZM8.4,22.4L20.4,22.4C21.332,22.4 21.798,22.4 22.165,22.248C22.655,22.045 23.045,21.655 23.248,21.165C23.4,20.798 23.4,20.332 23.4,19.4C23.4,18.468 23.4,18.002 23.248,17.635C23.045,17.145 22.655,16.755 22.165,16.552C21.798,16.4 21.332,16.4 20.4,16.4L8.4,16.4C7.468,16.4 7.002,16.4 6.635,16.552C6.145,16.755 5.755,17.145 5.552,17.635C5.4,18.002 5.4,18.468 5.4,19.4C5.4,20.332 5.4,20.798 5.552,21.165C5.755,21.655 6.145,22.045 6.635,22.248C7.002,22.4 7.468,22.4 8.4,22.4Z"
+        android:pathData="M4.4,6.4L24.4,6.4"
         android:strokeLineJoin="round"
         android:strokeWidth="2"
-        android:fillColor="#00000000"
         android:strokeColor="#000000"
         android:strokeLineCap="round"/>
+
+    <!-- First Rectangle Horizontal Line -->
+    <path
+        android:pathData="M4.4,12.4L24.4,12.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Connecting Curve between Top and First Rectangle -->
+    <path
+        android:pathData="M4.4,6.4L4.4,12.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M24.4,6.4L24.4,12.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Second Rectangle Horizontal Line -->
+    <path
+        android:pathData="M4.4,16.4L24.4,16.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Bottom Horizontal Line -->
+    <path
+        android:pathData="M4.4,22.4L24.4,22.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Connecting Curve between Second and Bottom Rectangle -->
+    <path
+        android:pathData="M4.4,16.4L4.4,22.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M24.4,16.4L24.4,22.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Left Vertical Dots -->
+    <path
+        android:pathData="M17.4,9.4L17.41,9.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M17.4,19.4L17.41,19.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
+    <!-- Right Vertical Dots -->
+    <path
+        android:pathData="M20.4,9.4L20.41,9.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M20.4,19.4L20.41,19.4"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"/>
+
   </group>
 </vector>

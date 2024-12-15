@@ -1,7 +1,10 @@
 package helpers
 
 import android.content.Context
+import android.content.Context.STORAGE_SERVICE
 import android.net.Uri
+import android.os.Environment
+import android.os.storage.StorageManager
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.entity.FileMeta
@@ -11,8 +14,22 @@ import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 
 class FileHandlerHelper(private val context: Context){
 
-    fun getFolderNameFromUri(uri: Uri?): String? {
 
+    fun isSdCardAvailable():Boolean{
+        var sdCardAvailable = false
+        val  storageManager = context.getSystemService(STORAGE_SERVICE) as StorageManager;
+        val storageVolumes = storageManager.getStorageVolumes();
+        for (volume in storageVolumes) {
+            val description = volume.getDescription(context)
+            if (volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED && description.contains("SD")) {
+                sdCardAvailable = true
+                break
+            }
+        }
+
+        return sdCardAvailable
+    }
+    fun getFolderNameFromUri(uri: Uri?): String? {
 
         val segments = uri?.pathSegments
 

@@ -108,9 +108,14 @@ class ServerService: Service() {
 
     private fun formatElapsedTime(elapsedTime: Long): String {
         val seconds = (elapsedTime / 1000) % 60
-        val minutes = (elapsedTime / (1000 * 60)) % 60
-        val hours = (elapsedTime / (1000 * 60 * 60)) % 24
-        return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+        val minutes = (elapsedTime / 60000) % 60
+        val hours = (elapsedTime / 3600000) % 24
+        val days = elapsedTime /86400000
+        return if (days > 0) {
+            String.format(Locale.US, "%d days %02d:%02d:%02d", days, hours, minutes, seconds)
+        } else {
+            String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+        }
     }
 
     private fun startServer() {

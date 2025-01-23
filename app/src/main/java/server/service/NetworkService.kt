@@ -31,9 +31,15 @@ class NetworkService {
         try {
             while (totalBytesRead < contentLength) {
                 var offset=0
-                bytesRead = inputStream.read(buffer, 0, buffer.size)
+                bytesRead = try {
+                    inputStream.read(buffer, 0, buffer.size)
+                } catch (e: IOException) {
+                    throw IOException("Network error or client disconnected", e)
+                }
 
-                if (bytesRead == -1) break
+                if (bytesRead == -1) {
+                    throw IOException("Unexpected end of stream. Client may have disconnected.")
+                }
 
                 totalBytesRead += bytesRead
 

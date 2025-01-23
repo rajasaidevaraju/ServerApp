@@ -55,7 +55,7 @@ fun Info(mainActivityViewModel: MainActivityViewModel){
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StyledText(text = "Total rows in database:")
                 Spacer(Modifier.weight(1f))
-                StyledText(text = "$rowCount")
+                Text(text = "$rowCount")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }"
@@ -215,9 +215,9 @@ fun ServerImage() {
 @Composable
 fun DisplayIP(address:String?) {
     if(address!=null){
-        StyledText(text = address)
+        Text(text = address)
     }else{
-        StyledText(text = "NULL")
+        Text(text = "NULL")
     }
 }
 

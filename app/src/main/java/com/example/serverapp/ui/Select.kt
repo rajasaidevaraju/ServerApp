@@ -52,7 +52,7 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
                 if(sdCardFolderName==null){
                     FolderSelectButton(requestPermissionLauncherSDCard)
                 }else{
-                    Text(sdCardFolderName)
+                    Text(sdCardFolderName,modifier = Modifier.padding(5.dp))
                 }
                 Text("")
             }
@@ -62,7 +62,7 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
             if(internalFolderName==null){
                 FolderSelectButton(requestPermissionLauncherInternal)
             }else{
-                Text(internalFolderName)
+                Text(internalFolderName,modifier = Modifier.padding(5.dp))
             }
 
         }

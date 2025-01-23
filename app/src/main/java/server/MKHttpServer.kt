@@ -14,16 +14,27 @@ import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import helpers.FileHandlerHelper
+import helpers.NetworkHelper
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
 import server.service.NetworkService
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.fixedRateTimer
 
 
 enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String) :
@@ -50,29 +61,104 @@ enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String)
 }
 
 class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
-    private var isRunning = false
+    private var isRunning = AtomicBoolean(false)
     private val prefHandler by lazy { SharedPreferencesHelper(context) }
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
+    private val networkHandler by lazy { NetworkHelper() }
     private val networkService by lazy { NetworkService() }
     private val fileService by lazy { FileService() }
     private val MIME_JSON="application/json"
+    private val activeServers = ConcurrentHashMap.newKeySet<String>()
+    private val broadcastPort = 6789
+    private val broadcastInterval = 5000L
+    private var broadcastThread: Thread? = null
+    private var listeningThread: Thread? = null
     private val dbService by lazy { DBService() }
     private val database  by lazy { AppDatabase.getDatabase(context) }
 
     override fun start() {
 
-        if (!isRunning) {
+        if (!isRunning.get()) {
             super.start()
-            isRunning = true
+            isRunning.set(true)
+            startBroadcasting()
+            startListeningForBroadcasts()
         }
     }
 
     override fun stop() {
-        if (isRunning) {
+        if (isRunning.get()) {
             super.stop()
-            isRunning = false
+            isRunning.set(false)
+            stopBroadcasting()
+            stopListeningForBroadcasts()
+
         }
     }
+
+    private fun startBroadcasting() {
+
+        broadcastThread = Thread {
+            fixedRateTimer(period = broadcastInterval) {
+                val format: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.US)
+                val timeStamp=format.format(Date())
+                var message ="$timeStamp: Server active at: ${InetAddress.getLocalHost().hostAddress} "
+                var ipAddress=networkHandler.getIpAddress(context)
+                if(ipAddress!=null){
+                    if(ipAddress == "null"){
+                        ipAddress="localhost"
+                    }
+                    message ="$timeStamp: Server active at: $ipAddress"
+                }
+                val socket = DatagramSocket()
+                val broadcastAddress = InetAddress.getByName("255.255.255.255")
+                val buffer = message.toByteArray()
+                if (!isRunning.get()) cancel()
+                val packet = DatagramPacket(buffer, buffer.size, broadcastAddress, broadcastPort)
+                socket.send(packet)
+            }
+        }.apply { start() }
+    }
+
+    private fun stopBroadcasting() {
+        broadcastThread?.interrupt()
+        broadcastThread = null
+    }
+
+    private fun startListeningForBroadcasts() {
+        listeningThread = Thread {
+            val socket = DatagramSocket(broadcastPort)
+            val buffer = ByteArray(1024)
+
+            while (isRunning.get()) {
+                try {
+                    val packet = DatagramPacket(buffer, buffer.size)
+                    socket.receive(packet)
+                    val message = String(packet.data, 0, packet.length)
+                    val senderIP = packet.address.hostAddress
+                    var deviceIP=networkHandler.getIpAddress(context)
+                    if(deviceIP!=null && senderIP!=null) {
+                        if (deviceIP == "null") {
+                            deviceIP = "localhost"
+                        }
+                        if (message.contains("Server active at:") && senderIP!=deviceIP) {
+                            activeServers.add(senderIP)
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (!isRunning.get()) break
+                }
+            }
+            socket.close()
+        }.apply { start() }
+    }
+
+    private fun stopListeningForBroadcasts() {
+        listeningThread?.interrupt()
+        listeningThread = null
+    }
+
+
 
     private fun handleServerRequest(url: String, session: IHTTPSession): Response{
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_PLAINTEXT, "Not found")
@@ -208,9 +294,12 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     }
                 }else{
                     val responseContent = mapOf("message" to "Improper url")
-                    val jsonContent: String = gson.toJson(responseContent)
-                    response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, jsonContent)
+                    response= newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
                 }
+            }
+            "/servers"->{
+                val responseContent = mapOf("activeServers" to activeServers.toList())
+                return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
             }
             "/stats"->{
                 try {
@@ -228,7 +317,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         for ( storageVolume: StorageVolume in storageVolumes) {
                             val uuid = storageVolume.storageUuid
                             Log.d("uuid:", uuid.toString())
-                             Log.d("storage stats isRemovable",  storageVolume.isRemovable.toString())
+                            Log.d("storage stats isRemovable",  storageVolume.isRemovable.toString())
                             Log.d("storage stats description",storageVolume.getDescription(context))
                             if(uuid!=null){
                                 Log.d("storage stats TotalBytes", storageStatsManager.getTotalBytes(uuid).toString())
@@ -254,6 +343,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         }
                     }
 
+
+
                     val responseContent = mapOf(
                         "files" to files,
                         "freeInternal" to freeInternal,
@@ -273,11 +364,11 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 if (internalURI != null) {
                     val destinationDir= DocumentFile.fromTreeUri(context,internalURI)
                     if(destinationDir!=null){
+                        val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").withZone(ZoneId.of("UTC"))
+                        val filename="defaultFileName ${formatter.format(Instant.now())}.mp4"
+                        var destinationFile:DocumentFile?=null
                         try{
-                            val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")
-                                .withZone(ZoneId.of("UTC"))
-                            val contentLength = session.headers["content-length"]!!
-                                .toLong()
+                            val contentLength = session.headers["content-length"]!!.toLong()
                             val threeGBInBytes = 3L * 1024 * 1024 * 1024
                             if(fileService.getFreeInternalMemorySize()-contentLength<threeGBInBytes){
                                 response = newFixedLengthResponse(ExtendedStatus.INSUFFICIENT_STORAGE, MIME_JSON, gson.toJson(mapOf("message" to "Not enough storage.")))
@@ -288,9 +379,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                                     val responseContent = mapOf("message" to "No Boundary in headers")
                                     return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
                                 }else{
-                                    val filename="defaultFIleName${formatter.format(Instant.now())}.mp4"
-                                    val destinationFile=destinationDir.createFile("video/mp4", filename)
-                                    val destinationOutputStream = destinationFile?.uri?.let { context.contentResolver.openOutputStream(it) }
+                                    destinationFile=destinationDir.createFile("video/mp4", filename)
+                                    if(destinationFile==null){
+                                        val responseContent = mapOf("message" to "File creation failed")
+                                        response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                                        return response
+                                    }
+                                    val destinationOutputStream = destinationFile.uri.let { context.contentResolver.openOutputStream(it) }
                                     if(destinationOutputStream!=null){
                                         val returnFilename=networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength)
                                         var responseContent = mapOf("message" to "File Stored Successfully")
@@ -326,6 +421,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                             }
                         }catch(exception:Exception){
                             Log.d("exception",getExceptionString(exception))
+                            destinationFile?.delete()
                             val responseContent=mapOf(
                                 "message" to "Could not complete file upload",
                                 "error" to getExceptionString(exception)
@@ -358,7 +454,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         var url= session.uri ?: return response
 
         if(url.startsWith("/server")){
-            url=url.replace("/server","")
+            url=url.substring(7,url.length)
             response=handleServerRequest(url,session)
         }
         else{

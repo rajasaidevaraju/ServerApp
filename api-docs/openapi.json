@@ -1,0 +1,352 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "File Management API",
+    "description": "API for managing files, including uploading, downloading, retrieving metadata, and performing operations like cleanup and stats retrieval.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/server/status": {
+      "get": {
+        "summary": "Check server status",
+        "responses": {
+          "200": {
+            "description": "Server is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alive": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server/files": {
+      "get": {
+        "summary": "Get paginated file metadata",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "page": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "total": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server/file": {
+      "get": {
+        "summary": "Stream a file",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the file to stream"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File streamed successfully"
+          },
+          "400": {
+            "description": "Missing required parameter"
+          },
+          "404": {
+            "description": "Invalid File ID"
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload a file",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": ["fileName", "file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File uploaded successfully"
+          },
+          "409": {
+            "description": "File name already exists"
+          },
+          "507": {
+            "description": "Not enough storage"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a file",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the file to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted successfully"
+          },
+          "404": {
+            "description": "File not found"
+          },
+          "500": {
+            "description": "Could not delete file"
+          }
+        }
+      }
+    },
+    "/server/thumbnail": {
+      "get": {
+        "summary": "Retrieve file thumbnail",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the file for thumbnail retrieval"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thumbnail data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imageData": { "type": "string" },
+                    "exists": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing fileId parameter"
+          },
+          "500": {
+            "description": "Could not get thumbnail"
+          }
+        }
+      },
+      "post": {
+        "summary": "Insert or update a file thumbnail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string"
+                  },
+                  "imageData": {
+                    "type": "string"
+                  }
+                },
+                "required": [ "fileId", "imageData" ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thumbnail updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Thumbnail inserted or updated for file with ID $insertedFileId"
+                    },
+                    "fileId": {
+                      "type": "string",
+                      "example": "$insertedFileId"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Thumbnail operation failed"
+          }
+        }
+      }
+
+    },
+    "/server/servers": {
+      "get": {
+        "summary": "Get active servers",
+        "responses": {
+          "200": {
+            "description": "List of active servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activeServers": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server/stats": {
+      "get": {
+        "summary": "Retrieve server stats",
+        "responses": {
+          "200": {
+            "description": "Server stats retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files": { "type": "integer" },
+                    "freeInternal": { "type": "integer" },
+                    "totalInternal": { "type": "integer" },
+                    "freeExternal": { "type": "integer" },
+                    "totalExternal": { "type": "integer" },
+                    "hasExternalStorage": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Stats retrieval failed"
+          }
+        }
+      }
+    },
+    "/server/scan": {
+      "post": {
+        "summary": "Scan and index files",
+        "responses": {
+          "200": {
+            "description": "Scan completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "insertions_attempted": { "type": "integer" },
+                    "not_inserted": { "type": "integer" },
+                    "inserted": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server/cleanup": {
+      "delete": {
+        "summary": "Remove absent file entries",
+        "responses": {
+          "200": {
+            "description": "Cleanup successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "rows_deleted": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "NotFound": {
+        "description": "The requested resource could not be found"
+      },
+      "InternalError": {
+        "description": "An internal server error occurred"
+      }
+    }
+  }
+}

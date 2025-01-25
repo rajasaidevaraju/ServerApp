@@ -47,8 +47,8 @@ class FileService {
 
         if (fileMeta == null || file == null || !file.isFile) {
             val responseContent= mapOf("message" to "File not found or inaccessible")
-            val fileNotFoundResponse = NanoHTTPD.newFixedLengthResponse(
-                NanoHTTPD.Response.Status.NOT_FOUND,
+            val fileNotFoundResponse = newFixedLengthResponse(
+                Status.NOT_FOUND,
                 "application/json",
                 gson.toJson(responseContent)
             )

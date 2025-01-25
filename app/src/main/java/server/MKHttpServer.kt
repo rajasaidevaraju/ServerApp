@@ -172,6 +172,32 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val jsonContent: String = gson.toJson(responseContent)
                 response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
+            "/name"->{
+                val params = session.parameters
+
+                val fileIdStr = params["fileId"]?.firstOrNull()
+
+                if (fileIdStr.isNullOrBlank()) {
+                    val responseContent = mapOf("message" to "Missing required parameter: fileId")
+                    return  newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(responseContent))
+                }
+                try{
+                    val fileId=fileIdStr.toLong()
+                    val fileMeta=database.fileDao().getFileById(fileId)
+                    if(fileMeta==null){
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "fileId not present")))
+                    }
+                    return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("fileName" to fileMeta.fileName)))
+
+                }catch (exception: NumberFormatException){
+                    return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Invalid fileId")))
+                }
+                catch (exception:Exception){
+                    val responseContent =  mapOf("message" to "Name retrieval failed for fileId: $fileIdStr", "error" to getExceptionString(exception))
+                    return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
+                }
+
+            }
 
             "/files"->{
                 val params = session.parameters
@@ -203,7 +229,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     try {
                         val fileId=fileIdStr.toLong()
                         response=fileService.streamFile(fileId,context,database,session.headers)
-                        //addCorsHeaders(response)
 
                     } catch (e: NumberFormatException) {
                         val responseContent = mapOf("message" to "Invalid File ID")
@@ -259,6 +284,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
             "/stats"->{
                 try {
+
                     val hasExternalStorage = fileHandlerHelper.isSdCardAvailable()
                     val files = database.fileDao().getTotalFileCount()
                     var totalInternal:Long = 0
@@ -325,20 +351,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         when(url){
             "/file"->{
                 val destinationDir= DocumentFile.fromTreeUri(context,internalURI)
-                if(destinationDir==null){
+                if(destinationDir==null || destinationDir.isFile){
                     return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Could not store the file")))
-                }
-                val params = session.parameters
-                val fileName = params["fileName"]?.firstOrNull()
-                if(fileName==null){
-                    val responseContent = mapOf("message" to "No file name in the request body")
-                    return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
-                }
-                for (file in destinationDir.listFiles()) {
-                    if (file.name == fileName) {
-                        val responseContent=mapOf("message" to "File Name Already Exists")
-                        return newFixedLengthResponse(Status.CONFLICT, MIME_JSON, gson.toJson(responseContent))
-                    }
                 }
                 var destinationFile:DocumentFile?=null
                 try{
@@ -352,6 +366,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     if(boundary==null){
                         return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "No Boundary in headers")))
                     }
+                    val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").withZone(ZoneId.of("UTC"))
+                    var fileName="defaultFIleName${formatter.format(Instant.now())}.mp4"
                     destinationFile=destinationDir.createFile("video/mp4", fileName)
                     val destinationFileURI=destinationFile?.uri
                     if(destinationFile==null || destinationFileURI==null){
@@ -361,7 +377,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     if(destinationOutputStream==null){
                         return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Could not write to file")))
                     }
-                    networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength)
+                    fileName=networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength,destinationDir)
                     val responseContent = mapOf("message" to "File Stored Successfully")
                     val fileMeta=FileMeta(fileName=fileName, fileUri = destinationFile.uri)
                     database.fileDao().insertFile(fileMeta)
@@ -376,7 +392,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     )
                     response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
                 }
-
             }
             "/thumbnail"->{
                 try {
@@ -472,8 +487,14 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         return response
     }
 
-
-
+    private fun handlePutRequest(url: String, session: IHTTPSession,sdCardURI: Uri?, internalURI:Uri): Response {
+        val gson: Gson = GsonBuilder().create()
+        var response: Response = newFixedLengthResponse(
+            Status.NOT_FOUND, MIME_JSON,
+            gson.toJson(mapOf("message" to "The requested resource could not be found"))
+        )
+        return response
+    }
 
     override fun serve(session: IHTTPSession): Response {
 
@@ -501,7 +522,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             url=url.substring(7,url.length)
             response = when (session.method){
                 Method.GET-> handleGetRequest(url,session,sdCardURI,internalURI)
-                Method.PUT -> TODO()
+                Method.PUT -> handlePutRequest(url,session,sdCardURI,internalURI)
                 Method.POST -> handlePostRequest(url,session,sdCardURI,internalURI)
                 Method.DELETE -> handleDeleteRequest(url,session,sdCardURI,internalURI)
                 else-> newFixedLengthResponse(Status.METHOD_NOT_ALLOWED, MIME_JSON, gson.toJson(mapOf("message" to "Method Not Allowed")))
@@ -525,7 +546,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         }
         val backEndUrl=prefHandler.getBackEndUrl()
         if(!backEndUrl.isNullOrBlank()){
-            addCorsHeaders(response,backEndUrl)
+            addCorsHeaders(response,"")
         }
         return response
     }
@@ -552,7 +573,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     }
 
     private fun addCorsHeaders(response: Response,backEndUrl:String="\"http://10.0.0.106\"") {
-        response.addHeader("Access-Control-Allow-Origin", backEndUrl )
+        response.addHeader("Access-Control-Allow-Origin", "*" )
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "origin, content-type, accept, authorization")
     }

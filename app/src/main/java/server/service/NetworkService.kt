@@ -2,6 +2,7 @@ package server.service
 
 
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import fi.iki.elonen.NanoHTTPD.IHTTPSession
 import fi.iki.elonen.NanoHTTPD.MIME_PLAINTEXT
 import fi.iki.elonen.NanoHTTPD.Response
@@ -19,7 +20,7 @@ class NetworkService {
 
 
 
-    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long):String {
+    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long,directory: DocumentFile):String {
         val boundaryBytes = "--$boundary\r\n".toByteArray(Charsets.UTF_8)
         val endBoundaryBytes = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
 

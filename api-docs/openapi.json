@@ -28,6 +28,78 @@
         }
       }
     },
+    "/name": {
+      "get": {
+        "summary": "Retrieve file name by fileId",
+        "description": "Fetches the file name associated with the provided fileId.",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": true,
+            "description": "The ID of the file to retrieve metadata for.",
+            "schema": {
+              "type": "string",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File name retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fileName": {
+                      "type": "string",
+                      "description": "The name of the file."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request due to missing or invalid fileId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "Error message explaining the problem."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error occurred while processing the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "A general error message."
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Details about the internal error."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/server/files": {
       "get": {
         "summary": "Get paginated file metadata",

@@ -27,6 +27,7 @@ class ServerService: Service() {
     private val networkHandler by lazy { NetworkHelper() }
     private val prefHandler by lazy { SharedPreferencesHelper(this) }
     private var startTime: Long = 0L
+    private val notificationID=101
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var waveLock:PowerManager.WakeLock
     private val updateRunnable = object : Runnable {
@@ -34,7 +35,7 @@ class ServerService: Service() {
             val elapsedTime = SystemClock.elapsedRealtime() - startTime
             val elapsedTimeFormatted = formatElapsedTime(elapsedTime)
             updateNotification(elapsedTimeFormatted)
-            handler.postDelayed(this, 1000) // Update every second
+            handler.postDelayed(this, 60000) // Update every minute
         }
     }
 
@@ -76,16 +77,18 @@ class ServerService: Service() {
 
     private fun startForegroundService() {
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
+        val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
+        if (existingChannel == null) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Server Channel",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
 
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Server Channel",
-            NotificationManager.IMPORTANCE_HIGH
-        )
-        notificationManager.createNotificationChannel(channel)
         val initialNotification = buildNotification(TITLE, "Elapsed time: 0:00")
-
-        startForeground(101, initialNotification)
+        startForeground(notificationID, initialNotification)
     }
 
     private fun buildNotification(title: String, content: String): Notification {
@@ -103,18 +106,21 @@ class ServerService: Service() {
         }
         val notificationManager = getSystemService(NotificationManager::class.java)
         val notification = buildNotification(TITLE, "Elapsed time: $elapsedTime")
-        notificationManager.notify(101, notification)
+        notificationManager.notify(notificationID, notification)
     }
 
     private fun formatElapsedTime(elapsedTime: Long): String {
-        val seconds = (elapsedTime / 1000) % 60
         val minutes = (elapsedTime / 60000) % 60
         val hours = (elapsedTime / 3600000) % 24
         val days = elapsedTime /86400000
         return if (days > 0) {
-            String.format(Locale.US, "%d days %02d:%02d:%02d", days, hours, minutes, seconds)
+            if(days.toInt() ==1){
+                String.format(Locale.US, "%d day %02d:%02d", days, hours, minutes)
+            }else{
+                String.format(Locale.US, "%d days %02d:%02d", days, hours, minutes)
+            }
         } else {
-            String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
+            String.format(Locale.US, "%02d:%02d", hours, minutes)
         }
     }
 

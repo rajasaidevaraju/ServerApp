@@ -1,13 +1,10 @@
 import android.app.usage.StorageStatsManager
-import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import android.util.Log
-import androidx.core.content.ContextCompat.getExternalFilesDirs
 import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -27,13 +24,11 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.text.DateFormat
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.fixedRateTimer
@@ -185,7 +180,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     val fileId=fileIdStr.toLong()
                     val fileMeta=database.fileDao().getFileById(fileId)
                     if(fileMeta==null){
-                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "fileId not present")))
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "file ID ${fileId} not present")))
                     }
                     return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("fileName" to fileMeta.fileName)))
 
@@ -269,11 +264,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
             }
             "/servers"->{
-                val oneMinuteAgo = Instant.now().minusSeconds(1)
+                val oneMinuteAgo = Instant.now().minusSeconds(60)
                 val list=ArrayList<String>()
                 for(server in activeServers.entries){
                     val instant=server.value
                     val ipAddress=server.key
+                    Log.d("ServerInfo", "Instant: $instant, IP Address: $ipAddress")
+
                     if(instant.isAfter(oneMinuteAgo)){
                         list.add(ipAddress)
                     }
@@ -367,7 +364,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "No Boundary in headers")))
                     }
                     val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").withZone(ZoneId.of("UTC"))
-                    var fileName="defaultFIleName${formatter.format(Instant.now())}.mp4"
+                    val fileName="defaultFIleName${formatter.format(Instant.now())}.mp4"
                     destinationFile=destinationDir.createFile("video/mp4", fileName)
                     val destinationFileURI=destinationFile?.uri
                     if(destinationFile==null || destinationFileURI==null){
@@ -377,10 +374,30 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     if(destinationOutputStream==null){
                         return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Could not write to file")))
                     }
-                    fileName=networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength,destinationDir)
-                    val responseContent = mapOf("message" to "File Stored Successfully")
-                    val fileMeta=FileMeta(fileName=fileName, fileUri = destinationFile.uri)
+                    var originalFileName=networkService.processMultipartFormData(session.inputStream,boundary,destinationOutputStream,contentLength,destinationDir)
+                    //check if file already exists in file system
+                    var renameOp=false
+                    if(!database.fileDao().isFileNamePresent(originalFileName)){
+                        renameOp=destinationFile.renameTo(originalFileName)
+                    }
+                    if(!renameOp){
+                        var i=1
+
+                        originalFileName=insertStringBeforeExtension(originalFileName," ($i)")
+                        while(destinationDir.findFile(originalFileName)!=null||database.fileDao().isFileNamePresent(originalFileName)){
+                            i+=1
+                            originalFileName=insertStringBeforeExtension(fileName," ($i)")
+                            if(i==10){
+                                originalFileName=fileName
+                                break
+                            }
+                        }
+                        destinationFile.renameTo(originalFileName)
+                    }
+
+                    val fileMeta=FileMeta(fileName=originalFileName, fileUri = destinationFile.uri)
                     database.fileDao().insertFile(fileMeta)
+                    val responseContent = mapOf("message" to "File Stored Successfully")
                     response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
 
                 }catch(exception:Exception){
@@ -589,6 +606,16 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         // example of contentType multipart/form-data; boundary=----WebKitFormBoundaryuRqy8BtHu1nT2dfA
         val regex = "boundary=(.+)".toRegex()
         return contentType?.let { regex.find(it)?.groups?.get(1)?.value }
+    }
+    private fun insertStringBeforeExtension(fileName: String, insertString: String):String{
+        val regex = Regex("(\\.[^\\.]+)$")
+        val matchResult = regex.find(fileName)
+        return if (matchResult != null) {
+            val index = matchResult.range.first
+            fileName.substring(0, index) + insertString + fileName.substring(index)
+        } else {
+            fileName
+        }
     }
 }
 

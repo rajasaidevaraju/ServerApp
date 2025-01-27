@@ -31,6 +31,9 @@ interface FileDAO {
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
 
+    @Query("SELECT EXISTS(SELECT 1 FROM file_meta WHERE file_name = :fileName)")
+    fun isFileNamePresent(fileName: String): Boolean
+
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCountLive(): LiveData<Int>
 

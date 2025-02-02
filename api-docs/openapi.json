@@ -28,7 +28,7 @@
         }
       }
     },
-    "/name": {
+"/name": {
       "get": {
         "summary": "Retrieve file name by fileId",
         "description": "Fetches the file name associated with the provided fileId.",
@@ -355,7 +355,9 @@
                     "totalInternal": { "type": "integer" },
                     "freeExternal": { "type": "integer" },
                     "totalExternal": { "type": "integer" },
-                    "hasExternalStorage": { "type": "boolean" }
+                    "hasExternalStorage": { "type": "boolean" },
+                    "percentage": {"type": "integer", "description": "Battery percentage."},
+                    "charging": {"type": "boolean", "description": "Whether the phone is charging."}
                   }
                 }
               }

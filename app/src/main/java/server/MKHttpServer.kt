@@ -1,6 +1,9 @@
 import android.app.usage.StorageStatsManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.StatFs
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
@@ -322,13 +325,28 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         }
                     }
 
+                    // battery percentage and charging status
+                    val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+                    val batteryStatus: Intent? = context.registerReceiver(null, intentFilter)
+
+                    val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                    val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                    val isCharging = batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+                    val batteryPct = if (level != -1 && scale != -1) {
+                        (level / scale.toFloat() * 100).toInt()
+                    } else {
+                        -1
+                    }
+
                     val responseContent = mapOf(
                         "files" to files,
                         "freeInternal" to freeInternal,
                         "totalInternal" to totalInternal,
                         "freeExternal" to freeExternal,
                         "totalExternal" to totalExternal,
-                        "hasExternalStorage" to hasExternalStorage
+                        "hasExternalStorage" to hasExternalStorage,
+                        "percentage" to batteryPct,
+                        "charging" to isCharging
                     )
                     response = newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
                 }catch (exception:Exception){

@@ -13,6 +13,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
 import database.entity.FileMeta
+import database.entity.SimplifiedFileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import helpers.FileHandlerHelper
@@ -35,6 +36,7 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.fixedRateTimer
+import kotlin.math.ceil
 
 
 enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String) :
@@ -199,20 +201,40 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
             "/files"->{
                 val params = session.parameters
-                val page = params["page"]?.firstOrNull()
+
+                val itemsPerPageParam = params["itemsPerPage"]?.firstOrNull()
+                val lastFileIDParam = params["lastFileID"]?.firstOrNull()
+
+                var itemsPerPage=20
+                var lastFileID=-1
                 var pageNo=1
-                val pageSize=20
-                if(!page.isNullOrBlank()){
-                    pageNo=page.toIntOrNull()?:1
-                }
-                val offSet=(pageNo-1)*pageSize
-                val paginatedFileData = database.fileDao().getSimplifiedFilesMetaPagenated(offSet,pageSize)
                 val totalFiles = database.fileDao().getTotalFileCount()
+
+                if(!itemsPerPageParam.isNullOrBlank()){
+                    itemsPerPage=itemsPerPageParam.toIntOrNull()?:20
+                }
+                if(!lastFileIDParam.isNullOrBlank()){
+                    lastFileID=lastFileIDParam.toIntOrNull()?:-1
+                }
+
+                lateinit var paginatedFileData:List<SimplifiedFileMeta>
+                if(lastFileID!=-1){
+                    paginatedFileData = database.fileDao().getSimplifiedFilesMetaAfterFileId(lastFileID,itemsPerPage)
+                    val position=database.fileDao().getPositionById(paginatedFileData.get(0).fileId)
+                    pageNo= ceil((position/itemsPerPage).toDouble()).toInt()
+                }else{
+                    paginatedFileData=database.fileDao().getFirstPage(itemsPerPage)
+                }
+
+
+
+
+
                 val responseContent = mapOf(
                     "data" to paginatedFileData,
                     "meta" to mapOf(
                         "page" to pageNo,
-                        "limit" to pageSize,
+                        "limit" to itemsPerPage,
                         "total" to totalFiles
                     )
                 )

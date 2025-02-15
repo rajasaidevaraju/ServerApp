@@ -28,8 +28,17 @@ interface FileDAO {
     @Query("SELECT fileId, file_name FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
     fun getSimplifiedFilesMetaPagenated(offset:Int, pageSize:Int): List<SimplifiedFileMeta>
 
+    @Query("SELECT fileId, file_name FROM file_meta WHERE fileId> :lastFileId ORDER BY fileId ASC LIMIT :pageSize")
+    fun getSimplifiedFilesMetaAfterFileId(lastFileId: Int, pageSize: Int): List<SimplifiedFileMeta>
+
+    @Query("SELECT fileId, file_name FROM file_meta ORDER BY fileId ASC LIMIT :pageSize")
+    fun getFirstPage(pageSize: Int): List<SimplifiedFileMeta>
+
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
+
+    @Query("SELECT COUNT(*) + 1 AS item_number FROM file_meta WHERE fileId < :fileId")
+    fun getPositionById(fileId: Int): Int
 
     @Query("SELECT EXISTS(SELECT 1 FROM file_meta WHERE file_name = :fileName)")
     fun isFileNamePresent(fileName: String): Boolean

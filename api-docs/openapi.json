@@ -1,26 +1,34 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "File Management API",
-    "description": "API for managing files, including uploading, downloading, retrieving metadata, and performing operations like cleanup and stats retrieval.",
+    "title": "MKHttpServer API",
+    "description": "API for interacting with the MKHttpServer, a NanoHTTPD-based server running on Android devices for file management, server discovery, and system statistics.",
     "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "http://{host}:1280/server",
+      "description": "Local MKHttpServer instance",
+      "variables": {
+        "host": {
+          "default": "localhost",
+          "description": "IP address or hostname of the server (discovered via broadcast)"
+        }
+      }
+    }
+  ],
   "paths": {
-    "/server/status": {
+    "/status": {
       "get": {
         "summary": "Check server status",
+        "description": "Returns whether the server is alive.",
         "responses": {
           "200": {
             "description": "Server is alive",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "alive": {
-                      "type": "boolean"
-                    }
-                  }
+                  "$ref": "#/components/schemas/StatusResponse"
                 }
               }
             }
@@ -28,16 +36,16 @@
         }
       }
     },
-"/name": {
+    "/name": {
       "get": {
-        "summary": "Retrieve file name by fileId",
-        "description": "Fetches the file name associated with the provided fileId.",
+        "summary": "Get file name by ID",
+        "description": "Retrieves the name of a file given its ID.",
         "parameters": [
           {
             "name": "fileId",
             "in": "query",
             "required": true,
-            "description": "The ID of the file to retrieve metadata for.",
+            "description": "The ID of the file",
             "schema": {
               "type": "string",
               "format": "int64"
@@ -46,53 +54,31 @@
         ],
         "responses": {
           "200": {
-            "description": "File name retrieved successfully.",
+            "description": "File name retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "fileName": {
-                      "type": "string",
-                      "description": "The name of the file."
-                    }
-                  }
+                  "$ref": "#/components/schemas/FileNameResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request due to missing or invalid fileId.",
+            "description": "Invalid or missing fileId",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "description": "Error message explaining the problem."
-                    }
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Internal server error occurred while processing the request.",
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "description": "A general error message."
-                    },
-                    "error": {
-                      "type": "string",
-                      "description": "Details about the internal error."
-                    }
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -100,43 +86,39 @@
         }
       }
     },
-    "/server/files": {
+    "/files": {
       "get": {
-        "summary": "Get paginated file metadata",
+        "summary": "List paginated file metadata",
+        "description": "Retrieves a paginated list of file metadata.",
         "parameters": [
           {
             "name": "page",
             "in": "query",
+            "required": false,
+            "description": "Page number (defaults to 1)",
             "schema": {
               "type": "integer",
               "default": 1
-            },
-            "description": "Page number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "List of files",
+            "description": "Paginated file metadata",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object"
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "page": { "type": "integer" },
-                        "limit": { "type": "integer" },
-                        "total": { "type": "integer" }
-                      }
-                    }
-                  }
+                  "$ref": "#/components/schemas/PaginatedFilesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No files found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -144,34 +126,59 @@
         }
       }
     },
-    "/server/file": {
+    "/file": {
       "get": {
         "summary": "Stream a file",
+        "description": "Streams a file by its ID.",
         "parameters": [
           {
             "name": "fileId",
             "in": "query",
             "required": true,
+            "description": "The ID of the file to stream",
             "schema": {
-              "type": "integer"
-            },
-            "description": "ID of the file to stream"
+              "type": "string",
+              "format": "int64"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "File streamed successfully"
+            "description": "File stream",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Missing required parameter"
+            "description": "Missing or invalid fileId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invalid File ID"
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
       "post": {
         "summary": "Upload a file",
+        "description": "Uploads a file to the server with multipart/form-data.",
         "requestBody": {
           "required": true,
           "content": {
@@ -179,69 +186,74 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "fileName": {
-                    "type": "string"
-                  },
                   "file": {
                     "type": "string",
-                    "format": "binary"
+                    "format": "binary",
+                    "description": "The file to upload"
                   }
-                },
-                "required": ["fileName", "file"]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "File uploaded successfully"
+            "description": "File uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
           },
-          "409": {
-            "description": "File name already exists"
+          "400": {
+            "description": "Bad request (e.g., no boundary in headers)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "507": {
-            "description": "Not enough storage"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete a file",
-        "parameters": [
-          {
-            "name": "fileId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "ID of the file to delete"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File deleted successfully"
-          },
-          "404": {
-            "description": "File not found"
+            "description": "Insufficient storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Could not delete file"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/server/thumbnail": {
+    "/thumbnail": {
       "get": {
-        "summary": "Retrieve file thumbnail",
+        "summary": "Get file thumbnail",
+        "description": "Retrieves the thumbnail data for a file by ID.",
         "parameters": [
           {
             "name": "fileId",
             "in": "query",
             "required": true,
+            "description": "The ID of the file",
             "schema": {
-              "type": "integer"
-            },
-            "description": "ID of the file for thumbnail retrieval"
+              "type": "string",
+              "format": "int64"
+            }
           }
         ],
         "responses": {
@@ -250,88 +262,88 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "imageData": { "type": "string" },
-                    "exists": { "type": "boolean" }
-                  }
+                  "$ref": "#/components/schemas/ThumbnailResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Missing fileId parameter"
+            "description": "Missing or invalid fileId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Could not get thumbnail"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
       "post": {
-        "summary": "Insert or update a file thumbnail",
+        "summary": "Upload thumbnail",
+        "description": "Uploads or updates thumbnail data for a file.",
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "application/x-www-form-urlencoded": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "fileId": {
-                    "type": "string"
-                  },
-                  "imageData": {
-                    "type": "string"
+                  "postData": {
+                    "type": "string",
+                    "description": "Thumbnail data (e.g., base64-encoded image)"
                   }
                 },
-                "required": [ "fileId", "imageData" ]
+                "required": ["postData"]
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Thumbnail updated successfully",
+            "description": "Thumbnail uploaded successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Thumbnail inserted or updated for file with ID $insertedFileId"
-                    },
-                    "fileId": {
-                      "type": "string",
-                      "example": "$insertedFileId"
-                    }
-                  }
+                  "$ref": "#/components/schemas/ThumbnailPostResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Thumbnail operation failed"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
-
     },
-    "/server/servers": {
+    "/servers": {
       "get": {
-        "summary": "Get active servers",
+        "summary": "List active servers",
+        "description": "Returns a list of IP addresses of active servers discovered via UDP broadcast.",
         "responses": {
           "200": {
             "description": "List of active servers",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "activeServers": {
-                      "type": "array",
-                      "items": { "type": "string" }
-                    }
-                  }
+                  "$ref": "#/components/schemas/ActiveServersResponse"
                 }
               }
             }
@@ -339,51 +351,27 @@
         }
       }
     },
-    "/server/stats": {
+    "/stats": {
       "get": {
-        "summary": "Retrieve server stats",
+        "summary": "Get system statistics",
+        "description": "Returns storage, file count, and battery statistics.",
         "responses": {
           "200": {
-            "description": "Server stats retrieved",
+            "description": "System statistics",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "files": { "type": "integer" },
-                    "freeInternal": { "type": "integer" },
-                    "totalInternal": { "type": "integer" },
-                    "freeExternal": { "type": "integer" },
-                    "totalExternal": { "type": "integer" },
-                    "hasExternalStorage": { "type": "boolean" },
-                    "percentage": {"type": "integer", "description": "Battery percentage."},
-                    "charging": {"type": "boolean", "description": "Whether the phone is charging."}
-                  }
+                  "$ref": "#/components/schemas/StatsResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Stats retrieval failed"
-          }
-        }
-      }
-    },
-    "/server/scan": {
-      "post": {
-        "summary": "Scan and index files",
-        "responses": {
-          "200": {
-            "description": "Scan completed successfully",
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "insertions_attempted": { "type": "integer" },
-                    "not_inserted": { "type": "integer" },
-                    "inserted": { "type": "integer" }
-                  }
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -391,20 +379,35 @@
         }
       }
     },
-    "/server/cleanup": {
+    "/scan": {
+      "post": {
+        "summary": "Scan storage for files",
+        "description": "Scans internal and external storage for files and updates the database.",
+        "responses": {
+          "200": {
+            "description": "Scan results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cleanup": {
       "delete": {
         "summary": "Remove absent file entries",
+        "description": "Cleans up database entries for files that no longer exist.",
         "responses": {
           "200": {
             "description": "Cleanup successful",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": { "type": "string" },
-                    "rows_deleted": { "type": "integer" }
-                  }
+                  "$ref": "#/components/schemas/CleanupResponse"
                 }
               }
             }
@@ -414,12 +417,224 @@
     }
   },
   "components": {
-    "responses": {
-      "NotFound": {
-        "description": "The requested resource could not be found"
+    "schemas": {
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "alive": {
+            "type": "boolean",
+            "description": "Indicates if the server is running"
+          }
+        },
+        "required": ["alive"]
       },
-      "InternalError": {
-        "description": "An internal server error occurred"
+      "FileNameResponse": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Name of the file"
+          }
+        },
+        "required": ["fileName"]
+      },
+      "PaginatedFilesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileMetaSimplified"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "description": "Current page number"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Number of items per page"
+              },
+              "total": {
+                "type": "integer",
+                "description": "Total number of files"
+              }
+            },
+            "required": ["page", "limit", "total"]
+          }
+        },
+        "required": ["data", "meta"]
+      },
+      "FileMetaSimplified": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fileName": {
+            "type": "string"
+          }
+        },
+        "required": ["fileId", "fileName"]
+      },
+      "ThumbnailResponse": {
+        "type": "object",
+        "properties": {
+          "imageData": {
+            "type": "string",
+            "description": "Thumbnail data (e.g., base64-encoded image)"
+          },
+          "exists": {
+            "type": "boolean",
+            "description": "Whether the thumbnail exists"
+          }
+        },
+        "required": ["imageData", "exists"]
+      },
+      "ThumbnailPostResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "fileId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID of the file associated with the thumbnail"
+          }
+        },
+        "required": ["message", "fileId"]
+      },
+      "ActiveServersResponse": {
+        "type": "object",
+        "properties": {
+          "activeServers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "IP address of an active server"
+            }
+          }
+        },
+        "required": ["activeServers"]
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "integer",
+            "description": "Total number of files in the database"
+          },
+          "freeInternal": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Free internal storage in bytes"
+          },
+          "totalInternal": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total internal storage in bytes"
+          },
+          "freeExternal": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Free external storage in bytes"
+          },
+          "totalExternal": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total external storage in bytes"
+          },
+          "hasExternalStorage": {
+            "type": "boolean",
+            "description": "Whether external storage is available"
+          },
+          "percentage": {
+            "type": "integer",
+            "description": "Battery percentage (-1 if unavailable)"
+          },
+          "charging": {
+            "type": "boolean",
+            "description": "Whether the device is charging"
+          }
+        },
+        "required": [
+          "files",
+          "freeInternal",
+          "totalInternal",
+          "freeExternal",
+          "totalExternal",
+          "hasExternalStorage",
+          "percentage",
+          "charging"
+        ]
+      },
+      "ScanResponse": {
+        "type": "object",
+        "properties": {
+          "insertions_attempted": {
+            "type": "integer",
+            "description": "Number of files attempted to insert"
+          },
+          "not_inserted": {
+            "type": "integer",
+            "description": "Number of files not inserted"
+          },
+          "inserted": {
+            "type": "integer",
+            "description": "Number of files successfully inserted"
+          }
+        },
+        "required": ["insertions_attempted", "not_inserted", "inserted"]
+      },
+      "CleanupResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Cleanup success message"
+          },
+          "rows_deleted": {
+            "type": "integer",
+            "description": "Number of database rows removed"
+          }
+        },
+        "required": ["message", "rows_deleted"]
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          }
+        },
+        "required": ["message"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Error message"
+          },
+          "error": {
+            "type": "string",
+            "description": "Detailed error information (e.g., stack trace)",
+            "nullable": true
+          },
+          "stackTrace": {
+            "type": "string",
+            "description": "Stack trace of the exception (if applicable)",
+            "nullable": true
+          }
+        },
+        "required": ["message"]
       }
     }
   }

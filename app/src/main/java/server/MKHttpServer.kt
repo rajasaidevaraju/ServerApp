@@ -208,6 +208,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val offSet=(pageNo-1)*pageSize
                 val paginatedFileData = database.fileDao().getSimplifiedFilesMetaPagenated(offSet,pageSize)
                 val totalFiles = database.fileDao().getTotalFileCount()
+                if(paginatedFileData.isEmpty()){
+                    return newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "No files found")))
+                }
                 val responseContent = mapOf(
                     "data" to paginatedFileData,
                     "meta" to mapOf(
@@ -588,6 +591,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun staticBuiltUI(url: String): Response{
         var filePath = url.removePrefix("/") // Remove leading slash
+        val gson=GsonBuilder().create()
         if(filePath.isEmpty()){
             filePath=filePath.plus("index")
         }
@@ -600,11 +604,18 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         if(filePath.startsWith("_next")){
             filePath=filePath.replaceFirst("_next","next")
         }
-        return fileHandlerHelper.serveStaticFile(filePath) ?: newFixedLengthResponse(
-            Status.NOT_FOUND,
-            "text/plain",
-            "File not found"
-        )
+
+        val response = fileHandlerHelper.serveStaticFile(filePath)
+            ?: fileHandlerHelper.serveStaticFile("404.html")
+            ?: newFixedLengthResponse(
+                Status.NOT_FOUND,
+                MIME_JSON,
+                gson.toJson(mapOf("message" to "The requested resource could not be found"))
+            )
+
+        return response
+
+        return response
     }
 
     private fun addCorsHeaders(response: Response,backEndUrl:String="\"http://10.0.0.106\"") {

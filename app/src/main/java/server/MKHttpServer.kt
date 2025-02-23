@@ -431,6 +431,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     response = newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(responseContent))
                 }
             }
+            "/login"->{
+                response=newFixedLengthResponse(Status.NOT_IMPLEMENTED, MIME_JSON, gson.toJson(mapOf("message" to "Not implemented")))
+            }
             "/thumbnail"->{
                 try {
                     val postBody=HashMap<String,String>()
@@ -510,17 +513,12 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         val responseContent = mapOf("message" to "Could not delete file for id: $fileIdStr")
                         return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON,gson.toJson(responseContent) )
                     }
-
-
                 } catch (exception: Exception) {
                     val responseContent = mapOf("message" to "Could not delete file for id: $fileIdStr","stackTrace" to getExceptionString(exception))
                     Log.e("exception",getExceptionString(exception))
                     return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON,gson.toJson(responseContent) )
                 }
-
             }
-
-
         }
         return response
     }

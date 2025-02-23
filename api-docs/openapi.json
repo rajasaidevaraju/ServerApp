@@ -333,6 +333,64 @@
         }
       }
     },
+    "/login": {
+      "post": {
+        "summary": "User login",
+        "description": "Authenticates a user and returns a JWT token for subsequent authenticated requests.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful, JWT token returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (e.g., missing or malformed credentials)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed (e.g., incorrect username or password)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/servers": {
       "get": {
         "summary": "List active servers",
@@ -418,6 +476,44 @@
   },
   "components": {
     "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "The user's username",
+            "example": "johndoe"
+          },
+          "password": {
+            "type": "string",
+            "description": "The user's password",
+            "example": "secret123",
+            "format": "password"
+          }
+        },
+        "required": ["username", "password"]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT token for authenticated requests",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Token expiration time in seconds",
+            "example": 3600
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Login successful"
+          }
+        },
+        "required": ["token", "message"]
+      },
       "StatusResponse": {
         "type": "object",
         "properties": {
@@ -635,6 +731,14 @@
           }
         },
         "required": ["message"]
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from the /login endpoint"
       }
     }
   }

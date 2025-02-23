@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.example.serverapp"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.serverapp"
         minSdk = 31
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -48,6 +48,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.activity:activity:1.10.0")
     val room_version = "2.6.1"
     val lifecycle_version = "2.8.7"
 
@@ -75,4 +78,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycle_version")
     implementation("androidx.compose.runtime:runtime-livedata:1.7.5")
+    implementation("org.mindrot:jbcrypt:0.4")
 }

@@ -21,7 +21,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     val uiServerMode = MutableLiveData<Boolean>(false)
     val frontEndUrl=MutableLiveData<String?>()
     val backEndUrl=MutableLiveData<String?>()
-    val showAlertDialog = MutableLiveData<Boolean>(false)
     val isServerRunning= MutableLiveData<Boolean>(false)
     init {
         loadPrefs()
@@ -79,12 +78,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     fun updateBackEndUrl(){
         viewModelScope.launch {
             backEndUrl.value= prefHandler.getBackEndUrl()
-        }
-    }
-
-    fun setShowAlertDialog(dialog:Boolean){
-        viewModelScope.launch {
-            showAlertDialog.value=dialog
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.serverapp
 
 
 
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.os.Bundle
@@ -58,6 +59,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val serverIntentFilter = IntentFilter().apply {

@@ -85,7 +85,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
         if (!isRunning.get()) {
             super.start()
-            isRunning.set(true)
+            isRunning.set(super.isAlive())
             startBroadcasting()
             startListeningForBroadcasts()
         }
@@ -94,7 +94,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     override fun stop() {
         if (isRunning.get()) {
             super.stop()
-            isRunning.set(false)
+            isRunning.set(super.isAlive())
             stopBroadcasting()
             stopListeningForBroadcasts()
 
@@ -165,7 +165,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
 
 
-    private fun handleGetRequest(url: String, session: IHTTPSession, sdCardURI: Uri?, internalURI:Uri): Response{
+    private fun handleGetRequest(url: String, session: IHTTPSession): Response{
         val gson: Gson = GsonBuilder().create()
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson( mapOf("message" to "The requested resource could not be found")))
 
@@ -188,7 +188,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     val fileId=fileIdStr.toLong()
                     val fileMeta=database.fileDao().getFileById(fileId)
                     if(fileMeta==null){
-                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "file ID ${fileId} not present")))
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "file ID $fileId not present")))
                     }
                     return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("fileName" to fileMeta.fileName)))
 
@@ -594,7 +594,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
             url=url.substring(7,url.length)
             response = when (session.method){
-                Method.GET-> handleGetRequest(url,session,sdCardURI,internalURI)
+                Method.GET-> handleGetRequest(url,session)
                 Method.PUT -> handlePutRequest(url,session,sdCardURI,internalURI)
                 Method.POST -> handlePostRequest(url,session,sdCardURI,internalURI)
                 Method.DELETE -> handleDeleteRequest(url,session,sdCardURI,internalURI)

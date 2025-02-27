@@ -24,8 +24,6 @@ fun UserManagementScreen(viewModel: UserManagementViewModel) {
 
     val coroutineScope = rememberCoroutineScope()
     var showCreateUserForm by remember { mutableStateOf(false) }
-    var selectedUserId by remember { mutableStateOf<Long?>(null) }
-    var passwordChange by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier

@@ -11,6 +11,8 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import database.AppDatabase
 import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
@@ -20,6 +22,7 @@ import helpers.NetworkHelper
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
+import server.service.LoginService
 import server.service.NetworkService
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -61,11 +64,13 @@ enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String)
 }
 
 class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
+    private val database  by lazy { AppDatabase.getDatabase(context) }
     private var isRunning = AtomicBoolean(false)
     private val prefHandler by lazy { SharedPreferencesHelper(context) }
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
     private val networkHandler by lazy { NetworkHelper() }
     private val networkService by lazy { NetworkService() }
+    private val loginService by lazy {LoginService(database)}
     private val fileService by lazy { FileService() }
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
@@ -74,7 +79,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private var broadcastThread: Thread? = null
     private var listeningThread: Thread? = null
     private val dbService by lazy { DBService() }
-    private val database  by lazy { AppDatabase.getDatabase(context) }
+
 
     override fun start() {
 
@@ -432,7 +437,39 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
             }
             "/login"->{
-                response=newFixedLengthResponse(Status.NOT_IMPLEMENTED, MIME_JSON, gson.toJson(mapOf("message" to "Not implemented")))
+                val data=HashMap<String,String>()
+                session.parseBody(data)
+                val postBody= data["postData"] ?: return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "no post data found")))
+
+                val jsonObject = JsonParser.parseString(postBody).asJsonObject
+
+                val username= jsonObject.get("username").asString
+                val password= jsonObject.get("password").asString
+
+
+                val usernameResult = loginService.checkUsername(username)
+                val passwordResult = loginService.checkPassword(password)
+
+
+                if(usernameResult.first && passwordResult.first && username!=null && password!=null){
+                   val loginResult=  loginService.loginUser(username,password)
+                    if (loginResult.first) {
+                        return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "Login successful")))
+                    } else {
+                        return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to loginResult.second)))
+                    }
+                }else{
+                    var message=""
+                    if (!usernameResult.first) {
+                        message += usernameResult.second+" "
+                    }
+                    if (!passwordResult.first) {
+                        message += passwordResult.second+" "
+                    }
+                    return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to message)))
+
+                }
+
             }
             "/thumbnail"->{
                 try {

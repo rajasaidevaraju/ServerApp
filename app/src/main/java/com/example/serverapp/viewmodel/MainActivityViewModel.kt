@@ -41,49 +41,42 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun saveSDCardUri(uri: Uri) {
-        viewModelScope.launch {
-            prefHandler.storeSDCardURI(uri)
-            sdCardUri.value = uri
-        }
+        prefHandler.storeSDCardURI(uri)
+        sdCardUri.value = uri
     }
 
     fun saveInternalUri(uri: Uri) {
-        viewModelScope.launch {
-            prefHandler.storeInternalURI(uri)
-            internalUri.value = uri
-        }
+
+        prefHandler.storeInternalURI(uri)
+        internalUri.value = uri
+
     }
 
     fun setUIServerMode(mode:Boolean){
-        viewModelScope.launch {
-            prefHandler.storeUIServerMode(mode)
-            uiServerMode.value=mode
-        }
+
+        prefHandler.storeUIServerMode(mode)
+        uiServerMode.value=mode
+
     }
 
     fun setFrontEndUrl(url:String){
-        viewModelScope.launch {
-            prefHandler.storeFrontEndUrl(url)
-            frontEndUrl.value=url
-        }
+
+        prefHandler.storeFrontEndUrl(url)
+        frontEndUrl.value=url
     }
 
     fun setBackEndUrl(url:String){
-        viewModelScope.launch {
-            prefHandler.storeBackEndUrl(url)
-            backEndUrl.value=url
-        }
+
+        prefHandler.storeBackEndUrl(url)
+        backEndUrl.value=url
+
     }
 
     fun updateBackEndUrl(){
-        viewModelScope.launch {
-            backEndUrl.value= prefHandler.getBackEndUrl()
-        }
+        backEndUrl.value= prefHandler.getBackEndUrl()
     }
 
     fun setIsServerRunning(running:Boolean){
-        viewModelScope.launch {
-            isServerRunning.value=running
-        }
+        isServerRunning.value=running
     }
 }

@@ -26,47 +26,72 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
     private fun loadUsers() {
         viewModelScope.launch {
             users.clear()
-            users.addAll(userDao.getAllUsers())
+            withContext(Dispatchers.IO){
+                users.addAll(userDao.getAllUsers())
+            }
         }
     }
 
-    suspend fun createUser(userName: String, password: String) {
-        val hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt())
-        val user = User(userName = userName, passwordHash = hashedPassword)
-        userDao.insertUser(user)
-        loadUsers()
-    }
-
-    suspend fun changePassword(userId: Long, newPassword: String) {
-        val hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt())
-        userDao.updatePassword(userId, hashedPassword)
-        loadUsers()
-    }
-
-    suspend fun deleteUser(userId: Long) {
-        withContext(Dispatchers.IO) {
-            val user = userDao.getUserById(userId) ?: return@withContext
-            userDao.deleteUser(user.id)
-            loadUsers()
+    fun createUser(userName: String, password: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO){
+                val salt=BCrypt.gensalt()
+                val hashedPassword = BCrypt.hashpw(password, salt)
+                val user = User(userName = userName, passwordHash = hashedPassword, salt = salt)
+                userDao.insertUser(user)
+                loadUsers()
+            }
         }
     }
 
-
-
-    suspend fun disableUser(userId: Long) {
-        val user = userDao.getUserById(userId) ?: return
-        if(!user.disabled){
-            userDao.setDisabled(userId, true)
-            loadUsers()
+    fun changePassword(userId: Long, newPassword: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO){
+                val salt=BCrypt.gensalt()
+                val hashedPassword = BCrypt.hashpw(newPassword,salt)
+                userDao.updatePasswordWithSalt(userId, hashedPassword,salt)
+                loadUsers()
+            }
         }
+
     }
 
-    suspend fun enableUser(userId: Long) {
-        val user = userDao.getUserById(userId) ?: return
-        if(user.disabled){
-            userDao.setDisabled(userId, false)
-            loadUsers()
+    fun deleteUser(userId: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO){
+                val user = userDao.getUserById(userId) ?: return@withContext
+                userDao.deleteUser(user.id)
+                loadUsers()
+            }
         }
+
+
+    }
+
+    fun disableUser(userId: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO){
+                val user = userDao.getUserById(userId) ?: return@withContext
+                if(!user.disabled){
+                    userDao.setDisabled(userId, true)
+                    loadUsers()
+                }
+            }
+        }
+
+    }
+
+    fun enableUser(userId: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO){
+                val user = userDao.getUserById(userId) ?: return@withContext
+                if(user.disabled){
+                    userDao.setDisabled(userId, false)
+                    loadUsers()
+                }
+            }
+        }
+
 
     }
 

@@ -1,6 +1,7 @@
 package com.example.serverapp
 import helpers.NetworkHelper
 import MKHttpServer
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -30,6 +31,8 @@ class ServerService: Service() {
     private val notificationID=101
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var waveLock:PowerManager.WakeLock
+    private var serverThread: Thread? = null
+
     private val updateRunnable = object : Runnable {
         override fun run() {
             val elapsedTime = SystemClock.elapsedRealtime() - startTime
@@ -46,18 +49,21 @@ class ServerService: Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForegroundService()
         serverHandler = MKHttpServer(applicationContext)
+        createNotificationChannel()
     }
 
+    @SuppressLint("WakelockTimeout")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Thread {
+        startForegroundNotification()
+        serverThread = Thread {
             startServer()
             startTime = SystemClock.elapsedRealtime()
             handler.post(updateRunnable)
             waveLock=(getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ServerApp::Tag")
             waveLock.acquire()
-        }.start()
+        }
+        serverThread?.start()
         return START_STICKY
     }
 
@@ -68,14 +74,20 @@ class ServerService: Service() {
         if (this::waveLock.isInitialized && waveLock.isHeld) {
             waveLock.release()
         }
-
+        serverThread?.interrupt()
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
-    private fun startForegroundService() {
+    private fun startForegroundNotification() {
+        val initialNotification = buildNotification(TITLE, "Elapsed time: 0:00")
+        startForeground(notificationID, initialNotification);
+    }
+
+    private fun createNotificationChannel() {
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
         val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
         if (existingChannel == null) {
@@ -86,24 +98,18 @@ class ServerService: Service() {
             )
             notificationManager.createNotificationChannel(channel)
         }
-
-        val initialNotification = buildNotification(TITLE, "Elapsed time: 0:00")
-        startForeground(notificationID, initialNotification)
     }
 
     private fun buildNotification(title: String, content: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)
-            .setSmallIcon(R.drawable.notification_icon) // Ensure this icon is valid
+            .setSmallIcon(R.drawable.notification_icon)
+            .setOngoing(true)
             .build()
     }
 
     private fun updateNotification(elapsedTime: String) {
-        var isHeld=false
-        if(::waveLock.isInitialized && waveLock.isHeld ){
-            isHeld=true
-        }
         val notificationManager = getSystemService(NotificationManager::class.java)
         val notification = buildNotification(TITLE, "Elapsed time: $elapsedTime")
         notificationManager.notify(notificationID, notification)
@@ -113,14 +119,17 @@ class ServerService: Service() {
         val minutes = (elapsedTime / 60000) % 60
         val hours = (elapsedTime / 3600000) % 24
         val days = elapsedTime /86400000
-        return if (days > 0) {
-            if(days.toInt() ==1){
-                String.format(Locale.US, "%d day %02d:%02d", days, hours, minutes)
-            }else{
-                String.format(Locale.US, "%d days %02d:%02d", days, hours, minutes)
+        return when{
+            days>0->{
+                val dayString= if(days==1L) "1 day" else "$days days"
+                String.format(Locale.US,"%s %02d hr %02d min",dayString,hours,minutes)
             }
-        } else {
-            String.format(Locale.US, "%02d:%02d", hours, minutes)
+            hours>0 -> {
+                String.format(Locale.US,"%02d hr %02d min",hours,minutes)
+            }
+            else->{
+                String.format(Locale.US, "%02d min",minutes)
+            }
         }
     }
 

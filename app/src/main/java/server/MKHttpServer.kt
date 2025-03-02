@@ -22,7 +22,7 @@ import helpers.NetworkHelper
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
-import server.service.LoginService
+import server.service.UserService
 import server.service.NetworkService
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -70,7 +70,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
     private val networkHandler by lazy { NetworkHelper() }
     private val networkService by lazy { NetworkService() }
-    private val loginService by lazy {LoginService(database)}
+    private val userService by lazy {UserService(database)}
     private val fileService by lazy { FileService() }
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
@@ -82,19 +82,18 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
 
     override fun start() {
-
+        isRunning.set(super.isAlive())
         if (!isRunning.get()) {
             super.start()
-            isRunning.set(super.isAlive())
             startBroadcasting()
             startListeningForBroadcasts()
         }
     }
 
     override fun stop() {
+        isRunning.set(super.isAlive())
         if (isRunning.get()) {
             super.stop()
-            isRunning.set(super.isAlive())
             stopBroadcasting()
             stopListeningForBroadcasts()
 
@@ -206,7 +205,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val params = session.parameters
                 val page = params["page"]?.firstOrNull()
                 var pageNo=1
-                val pageSize=20
+                val pageSize=18
                 if(!page.isNullOrBlank()){
                     pageNo=page.toIntOrNull()?:1
                 }
@@ -447,12 +446,12 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val password= jsonObject.get("password").asString
 
 
-                val usernameResult = loginService.checkUsername(username)
-                val passwordResult = loginService.checkPassword(password)
+                val usernameResult = userService.checkUsername(username)
+                val passwordResult = userService.checkPassword(password)
 
 
                 if(usernameResult.first && passwordResult.first && username!=null && password!=null){
-                   val loginResult=  loginService.loginUser(username,password)
+                   val loginResult=  userService.loginUser(username,password)
                     if (loginResult.first) {
                         return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "Login successful")))
                     } else {

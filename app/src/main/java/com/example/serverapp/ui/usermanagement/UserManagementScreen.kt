@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.serverapp.ui.MinimalDialog
+import com.example.serverapp.ui.StyledError
 import kotlinx.coroutines.launch
 import com.example.serverapp.viewmodel.UserManagementViewModel
 import database.AppDatabase
@@ -57,6 +58,17 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
     // Create User Section
     var newUsername by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
+    val usernameError by viewModel.usernameError.collectAsState()
+    val passwordError by viewModel.passwordError.collectAsState()
+    val createResult by viewModel.createResult.collectAsState()
+
+    LaunchedEffect(createResult) {
+        if (createResult) {
+            onDismissRequest()
+            viewModel.resetError()
+            viewModel.initCreateUser()
+        }
+    }
 
     Dialog(onDismissRequest = { onDismissRequest() }) {
         Card(
@@ -82,6 +94,9 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
                         label = { Text("Username") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if(usernameError.isNotEmpty()){
+                        StyledError(usernameError)
+                    }
                     OutlinedTextField(
                         value = newPassword,
                         onValueChange = { newPassword = it },
@@ -89,21 +104,17 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
                         visualTransformation = PasswordVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if(passwordError.isNotEmpty()){
+                        StyledError(passwordError)
+                    }
+
                 }
                 Row( modifier=Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton( modifier = Modifier.padding(end = 10.dp), onClick = { onDismissRequest() }) { Text("Cancel") }
-                    Button(onClick = {
-                            if (newUsername.isNotBlank() && newPassword.isNotBlank()) {
-                                coroutineScope.launch {
-                                    viewModel.createUser(newUsername, newPassword)
-                                    newUsername = ""
-                                    newPassword = ""
-                                }
-                                onDismissRequest()
-
-                            }
-                        }
-                    ) {
+                    TextButton( modifier = Modifier.padding(end = 10.dp), onClick = {
+                        viewModel.resetError()
+                        onDismissRequest()
+                    }) { Text("Cancel") }
+                    Button(onClick = { coroutineScope.launch { viewModel.createUser(newUsername, newPassword) } }) {
                         Text("Create")
                     }
                 }
@@ -112,6 +123,7 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
     }
 
 }
+
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -167,28 +179,42 @@ fun UserItem(
 }
 
 @Composable
-fun EditPasswordDialog(user:User, viewModel: UserManagementViewModel, onDismissRequest: () -> Unit){
+fun EditPasswordDialog(user: User, viewModel: UserManagementViewModel, onDismissRequest: () -> Unit) {
     var passwordInput by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
+    val passwordError by viewModel.passwordError.collectAsState()
+    val passwordUpdateResult by viewModel.passwordUpdateResult.collectAsState()
+
+    LaunchedEffect(passwordUpdateResult) {
+        if (passwordUpdateResult) {
+            onDismissRequest()
+            viewModel.resetError()
+            viewModel.initPasswordUpdate()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = { onDismissRequest() },
         title = { Text("Change Password for ${user.userName}") },
         text = {
-            OutlinedTextField(
-                value = passwordInput,
-                onValueChange = { passwordInput = it },
-                label = { Text("New Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column {
+                OutlinedTextField(
+                    value = passwordInput,
+                    onValueChange = { passwordInput = it },
+                    label = { Text("New Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (passwordError.isNotEmpty()) {
+                    StyledError(passwordError)
+                }
+            }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (passwordInput.isNotBlank()) {
                         coroutineScope.launch { viewModel.changePassword(user.id, passwordInput) }
-                        onDismissRequest()
-                        passwordInput = ""
                     }
                 }
             ) {
@@ -202,6 +228,7 @@ fun EditPasswordDialog(user:User, viewModel: UserManagementViewModel, onDismissR
         }
     )
 }
+
 
 @Composable
 fun DeleteAccountDialog(user:User, viewModel: UserManagementViewModel, onDismissRequest: () -> Unit){

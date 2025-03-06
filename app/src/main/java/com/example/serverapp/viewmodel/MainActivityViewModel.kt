@@ -76,7 +76,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         backEndUrl.value= prefHandler.getBackEndUrl()
     }
 
-    fun setIsServerRunning(running:Boolean){
-        isServerRunning.value=running
+    fun updateServerRunning(){
+        isServerRunning.value=prefHandler.getBackEndUrl()!=null
     }
 }

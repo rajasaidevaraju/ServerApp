@@ -55,22 +55,56 @@ class ServerService: Service() {
 
     @SuppressLint("WakelockTimeout")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForegroundNotification()
-        serverThread = Thread {
-            startServer()
-            startTime = SystemClock.elapsedRealtime()
-            handler.post(updateRunnable)
-            waveLock=(getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ServerApp::Tag")
-            waveLock.acquire()
+        if (!serverHandler.isAlive) {
+            startForegroundNotification()
+            serverThread = Thread {
+                serverHandler.start()
+                updateStoredPref()
+                startTime = SystemClock.elapsedRealtime()
+                handler.post(updateRunnable)
+                waveLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "ServerApp::Tag"
+                )
+                waveLock.acquire()
+            }
+            serverThread?.start()
+        }else{
+            updateStoredPref()
+            Log.d("MKServer","Attempting to start the server while it is already alive")
         }
-        serverThread?.start()
+
         return START_STICKY
+    }
+
+
+    private fun updateStoredPref(){
+        var ipAddress=networkHandler.getIpAddress(this)
+        val broadcastIntent = Intent(SERVER_START_ACTION_NAME)
+        if(ipAddress!=null){
+            if(ipAddress == "null"){
+                ipAddress="localhost"
+            }
+            Log.d("MKServer Address","Server address $ipAddress:${serverHandler.listeningPort}")
+        }else{
+            Log.d("MKServer","Server live status:${serverHandler.isAlive}")
+        }
+        prefHandler.storeBackEndUrl("$ipAddress:${serverHandler.listeningPort}")
+        sendBroadcast(broadcastIntent)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacks(updateRunnable)
-        stopServer()
+        if (serverHandler.isAlive) {
+            serverHandler.stop()
+            val broadcastIntent = Intent(SERVER_STOP_ACTION_NAME)
+            prefHandler.storeBackEndUrl(null)
+            sendBroadcast(broadcastIntent)
+            Log.d("MKServer", "Server Stopped")
+        }else{
+            Log.d("MKServer","Attempting to stop the server while it is already dead")
+        }
         if (this::waveLock.isInitialized && waveLock.isHeld) {
             waveLock.release()
         }
@@ -133,33 +167,8 @@ class ServerService: Service() {
         }
     }
 
-    private fun startServer() {
-        if (!serverHandler.isAlive) {
-            serverHandler.start()
-            var ipAddress=networkHandler.getIpAddress(this)
-            val broadcastIntent = Intent(SERVER_START_ACTION_NAME)
-            prefHandler.storeBackEndUrl("$ipAddress:${serverHandler.listeningPort}")
-            sendBroadcast(broadcastIntent)
-            if(ipAddress!=null){
-                if(ipAddress == "null"){
-                    ipAddress="localhost"
-                }
-                Log.d("MKServer Address","Server Started with $ipAddress:${serverHandler.listeningPort}")
-            }else{
-                Log.d("MKServer","Server live status:${serverHandler.isAlive}")
-            }
-        }
-    }
-
-
     private fun stopServer() {
-        if (serverHandler.isAlive) {
-            serverHandler.stop()
-            val broadcastIntent = Intent(SERVER_STOP_ACTION_NAME)
-            prefHandler.storeBackEndUrl(null)
-            sendBroadcast(broadcastIntent)
-            Log.d("MKServer", "Server Stopped")
-        }
+
     }
 
 }

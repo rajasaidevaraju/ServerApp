@@ -24,6 +24,7 @@ import server.service.DBService
 import server.service.FileService
 import server.service.UserService
 import server.service.NetworkService
+import server.service.SessionManager
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.DatagramPacket
@@ -70,7 +71,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
     private val networkHandler by lazy { NetworkHelper() }
     private val networkService by lazy { NetworkService() }
-    private val userService by lazy {UserService(database)}
+    private val sessionManager = SessionManager()
+    private val userService by lazy {UserService(database,sessionManager)}
     private val fileService by lazy { FileService() }
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
@@ -452,10 +454,11 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
                 if(usernameResult.first && passwordResult.first && username!=null && password!=null){
                    val loginResult=  userService.loginUser(username,password)
-                    if (loginResult.first) {
-                        return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "Login successful")))
+                    if (loginResult.success) {
+                        val token=loginResult.token
+                        return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("token" to token)))
                     } else {
-                        return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to loginResult.second)))
+                        return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to loginResult.message)))
                     }
                 }else{
                     var message=""
@@ -470,6 +473,36 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
 
             }
+            "/logout" -> {
+                try {
+                    val authHeader = session.headers["authorization"]
+
+                    if (authHeader.isNullOrBlank()) {
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Authorization header missing")))
+                    }
+
+                    val token = authHeader.removePrefix("Bearer ").trim()
+
+                    if (token.isEmpty()) {
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Invalid token format")))
+                    }
+
+                    if (sessionManager.validateSession(token)==null) {
+                        return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Invalid or expired token")))
+                    }
+
+                    sessionManager.invalidateSession(token)
+
+                    return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "Logged out successfully")))
+
+                } catch (e: Exception) {
+                    return newFixedLengthResponse(
+                        Status.INTERNAL_ERROR, MIME_JSON,
+                        gson.toJson(mapOf("message" to "An error occurred during logout", "error" to e.localizedMessage))
+                    )
+                }
+            }
+
             "/thumbnail"->{
                 try {
                     val postBody=HashMap<String,String>()

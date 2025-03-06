@@ -3,7 +3,14 @@ import java.util.regex.Pattern
 import database.AppDatabase
 import org.mindrot.jbcrypt.BCrypt
 
-class UserService(private val database: AppDatabase) {
+data class LoginResult(
+    val success: Boolean,
+    val message: String? = null,
+    val token: String? = null
+)
+
+
+class UserService(private val database: AppDatabase,private val sessionManager: SessionManager) {
 
     fun checkUsername(username: String?): Pair<Boolean, String?> {
         if (username.isNullOrEmpty()) {
@@ -53,16 +60,17 @@ class UserService(private val database: AppDatabase) {
         return Pattern.compile("<[^>]*>?").matcher(input).find()
     }
 
-    fun loginUser(username: String, password: String): Pair<Boolean, String?> {
+    fun loginUser(username: String, password: String): LoginResult{
         val user = database.userDao().getEnabledUserByUsername(username)
-            ?: return Pair(false, "User not found or disabled.")
+            ?: return LoginResult(success = false, message = "User not found or disabled.")
 
         val hashedPassword = BCrypt.hashpw(password, user.salt)
 
         return if (hashedPassword == user.passwordHash) {
-            Pair(true, null)
+            val sessionToken=sessionManager.createSession(user.id)
+            LoginResult(success = true, token = sessionToken)
         } else {
-            Pair(false, "Incorrect password.")
+            LoginResult(success = false, message = "Incorrect password.")
         }
     }
 

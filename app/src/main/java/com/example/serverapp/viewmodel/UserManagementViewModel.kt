@@ -17,13 +17,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.mindrot.jbcrypt.BCrypt
+import server.service.SessionManager
 import server.service.UserService
 
 class UserManagementViewModel(application: Application): AndroidViewModel(application) {
 
     private val database  by lazy { AppDatabase.getDatabase(application) }
     private val userDao = database.userDao()
-    private val userService by lazy { UserService(database) }
+    private val sessionManager = SessionManager()
+    private val userService by lazy { UserService(database,sessionManager) }
 
     private val _usernameError = MutableStateFlow("")
     val usernameError: StateFlow<String> = _usernameError

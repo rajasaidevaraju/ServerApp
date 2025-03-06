@@ -123,13 +123,9 @@ class MainActivity : ComponentActivity() {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent != null) {
-                if(intent.action == SERVER_START_ACTION_NAME){
+                if(intent.action == SERVER_START_ACTION_NAME|| intent.action == SERVER_STOP_ACTION_NAME){
                     mainActivityViewModel.updateBackEndUrl()
-                    mainActivityViewModel.setIsServerRunning(true)
-                }
-                if(intent.action == SERVER_STOP_ACTION_NAME){
-                    mainActivityViewModel.updateBackEndUrl()
-                    mainActivityViewModel.setIsServerRunning(false)
+                    mainActivityViewModel.updateServerRunning()
                 }
             }
         }

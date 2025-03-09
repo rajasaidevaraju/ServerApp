@@ -476,30 +476,14 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             "/logout" -> {
                 try {
                     val authHeader = session.headers["authorization"]
-
-                    if (authHeader.isNullOrBlank()) {
-                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Authorization header missing")))
-                    }
-
-                    val token = authHeader.removePrefix("Bearer ").trim()
-
-                    if (token.isEmpty()) {
-                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Invalid token format")))
-                    }
-
-                    if (sessionManager.validateSession(token)==null) {
-                        return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Invalid or expired token")))
-                    }
+                    val token = authHeader?.removePrefix("Bearer ")?.trim() ?: return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Missing authorization header")))
 
                     sessionManager.invalidateSession(token)
 
                     return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "Logged out successfully")))
 
                 } catch (e: Exception) {
-                    return newFixedLengthResponse(
-                        Status.INTERNAL_ERROR, MIME_JSON,
-                        gson.toJson(mapOf("message" to "An error occurred during logout", "error" to e.localizedMessage))
-                    )
+                    return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "An error occurred during logout", "error" to e.localizedMessage)))
                 }
             }
 
@@ -508,6 +492,10 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     val postBody=HashMap<String,String>()
                     session.parseBody(postBody) // Parse the body into a map
                     val postData=postBody["postData"]
+                    if (postData.isNullOrBlank()) {
+                        val jsonContent = gson.toJson(mapOf("message" to "Missing or empty postData"))
+                        return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, jsonContent)
+                    }
                     val insertedFileId=dbService.insertScreenshotData(postData, database.fileDao())
                     val responseContent = mapOf(
                         "message" to "Thumbnail inserted or updated for file with ID $insertedFileId",
@@ -594,7 +582,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun handlePutRequest(url: String, session: IHTTPSession,sdCardURI: Uri?, internalURI:Uri): Response {
         val gson: Gson = GsonBuilder().create()
-        var response: Response = newFixedLengthResponse(
+        val response: Response = newFixedLengthResponse(
             Status.NOT_FOUND, MIME_JSON,
             gson.toJson(mapOf("message" to "The requested resource could not be found"))
         )
@@ -610,22 +598,40 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         val gson: Gson = GsonBuilder().create()
         var responseContent=mapOf("message" to "The requested resource could not be found")
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
-        var url= session.uri ?: return response
 
-        if(session.method==Method.OPTIONS){
-            response=newFixedLengthResponse(Response.Status.OK, MIME_PLAINTEXT, "")
-            addCorsHeaders(response,"")
+
+        var url= session.uri
+
+        if(url==null){
+            addCorsHeaders(response,session.headers["origin"])
             return response
         }
 
-        if(url.startsWith("/server")){
+        if(session.method==Method.OPTIONS){
+            Log.d("MKServer","OPTIONS request received")
+            response=newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to "OK")))
+            addCorsHeaders(response,session.headers["origin"])
+            return response
+        }
+
+        val serverRequest=url.startsWith("/server")
+
+        if(serverRequest){
 
             if(internalURI==null){
                 return newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "No Root Folder Selected")))
             }
 
             url=url.substring(7,url.length)
-            response = when (session.method){
+
+            val authResponse = authenticationMiddleware(session, url)
+            if(authResponse!=null){
+                Log.d("MKServer", "auth failed")
+                addCorsHeaders(response,session.headers["origin"])
+                return authResponse
+            }
+
+            response=when (session.method){
                 Method.GET-> handleGetRequest(url,session)
                 Method.PUT -> handlePutRequest(url,session,sdCardURI,internalURI)
                 Method.POST -> handlePostRequest(url,session,sdCardURI,internalURI)
@@ -649,11 +655,41 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
 
         }
-        val backEndUrl=prefHandler.getBackEndUrl()
-        if(!backEndUrl.isNullOrBlank()){
-            addCorsHeaders(response,"")
-        }
+
+
+        addCorsHeaders(response,session.headers["origin"])
         return response
+    }
+
+    private fun authenticationMiddleware(session: IHTTPSession, url: String): Response? {
+        val gson: Gson = GsonBuilder().create()
+        val method = session.method
+
+        // Skip authentication for these cases
+        val isGetRequest = method == Method.GET
+        val isLoginRequest = url == "/login" && method == Method.POST
+
+        if (isGetRequest || isLoginRequest) {
+            return null
+        }
+
+        val authHeader = session.headers["authorization"]
+        if (authHeader.isNullOrBlank()) {
+            return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Missing Authorization header")))
+        }
+
+        val token = authHeader.removePrefix("Bearer ").trim()
+        if (token.isEmpty()) {
+            return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Invalid Token")))
+        }
+
+        // Validate session using SessionManager
+        val userSession = sessionManager.validateSession(token)
+        if (userSession == null) {
+            return newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf( "message" to "Invalid or expired session")))
+        }
+
+        return null
     }
 
     private fun staticBuiltUI(url: String): Response{
@@ -681,14 +717,18 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             )
 
         return response
-
-        return response
     }
 
-    private fun addCorsHeaders(response: Response,backEndUrl:String="\"http://10.0.0.106\"") {
-        response.addHeader("Access-Control-Allow-Origin", "*" )
+    private fun addCorsHeaders(response: Response,url: String?=null) {
+
+        var allowOrigin = "http://10.0.0.181:1280"
+        if(url!=null && url.contains("http://10.0.0.")){
+            allowOrigin=url
+        }
+        response.addHeader("Access-Control-Allow-Origin", allowOrigin)
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "origin, content-type, accept, authorization")
+        response.addHeader("Access-Control-Allow-Credentials", "true")
     }
 
     private fun getExceptionString(exception:Exception):String{

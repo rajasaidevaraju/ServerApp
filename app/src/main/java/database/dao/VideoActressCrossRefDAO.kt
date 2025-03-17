@@ -10,7 +10,7 @@ import database.jointable.VideoActressCrossRef
 @Dao
 interface VideoActressCrossRefDAO {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertVideoActressCrossRef(videoActressCrossRef: VideoActressCrossRef)
+    fun insertVideoActressCrossRef(videoActressCrossRef: VideoActressCrossRef):Long
 
     @Query("SELECT * FROM video_actress_cross_ref WHERE fileId = :fileId")
     fun getActressesForVideo(fileId: Long): List<VideoActressCrossRef>

@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
                 INSTANCE = instance
                 return instance
             }
@@ -73,5 +73,63 @@ abstract class AppDatabase : RoomDatabase() {
 
             }
         }
+
+        private val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Step 1: Create a new table with foreign keys
+                db.execSQL("""
+            CREATE TABLE video_actress_cross_ref_new (
+                fileId INTEGER NOT NULL,
+                actressId INTEGER NOT NULL,
+                PRIMARY KEY (fileId, actressId),
+                FOREIGN KEY (fileId) REFERENCES file_meta(fileId) ON DELETE CASCADE,
+                FOREIGN KEY (actressId) REFERENCES actress(actressId) ON DELETE CASCADE
+            )
+        """.trimIndent())
+
+                // Step 2: Copy data from the old table
+                db.execSQL("""
+            INSERT INTO video_actress_cross_ref_new (fileId, actressId)
+            SELECT fileId, actressId FROM video_actress_cross_ref
+        """)
+
+                // Step 3: Delete old table
+                db.execSQL("DROP TABLE video_actress_cross_ref")
+
+                // Step 4: Rename new table to old table name
+                db.execSQL("ALTER TABLE video_actress_cross_ref_new RENAME TO video_actress_cross_ref")
+            }
+        }
+
+        private val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Step 1: Create a new table with foreign keys
+                db.execSQL("""
+            CREATE TABLE video_category_cross_ref_new (
+                fileId INTEGER NOT NULL,
+                categoryId INTEGER NOT NULL,
+                PRIMARY KEY (fileId, categoryId),
+                FOREIGN KEY (fileId) REFERENCES file_meta(fileId) ON DELETE CASCADE,
+                FOREIGN KEY (categoryId) REFERENCES category(categoryId) ON DELETE CASCADE
+            )
+        """.trimIndent())
+
+                // Step 2: Copy data from the old table
+                db.execSQL("""
+            INSERT INTO video_category_cross_ref_new (fileId, categoryId)
+            SELECT fileId, categoryId FROM video_category_cross_ref
+        """)
+
+                // Step 3: Delete old table
+                db.execSQL("DROP TABLE video_category_cross_ref")
+
+                // Step 4: Rename new table to old table name
+                db.execSQL("ALTER TABLE video_category_cross_ref_new RENAME TO video_category_cross_ref")
+            }
+        }
+
+
+
+
     }
 }

@@ -10,7 +10,7 @@ import database.jointable.VideoCategoryCrossRef
 @Dao
 interface VideoCategoryCrossRefDAO {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertVideoCategoryCrossRef(videoCategoryCrossRef: VideoCategoryCrossRef)
+    fun insertVideoCategoryCrossRef(videoCategoryCrossRef: VideoCategoryCrossRef):Long
 
     @Query("SELECT * FROM video_category_cross_ref WHERE fileId = :fileId")
     fun getCategoriesForVideo(fileId: Long): List<VideoCategoryCrossRef>

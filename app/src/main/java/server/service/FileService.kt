@@ -9,16 +9,20 @@ import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
+import database.dao.FileDetails
+import database.dao.Item
+import database.jointable.VideoActressCrossRef
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.FileHandlerHelper
+import org.json.JSONObject
 import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
 
 
-class FileService {
+class FileService(private val database: AppDatabase) {
 
     private val mimeType = "video/mp4"
 
@@ -38,6 +42,59 @@ class FileService {
         return rows
     }
 
+
+    fun addPerformerToFile(postData: String?,fileId:Long?):ServiceResult{
+
+        if (postData == null) {
+            return ServiceResult(success = false, message = "Missing PostBody")
+        }
+        if(fileId==null){
+            return ServiceResult(success = false, message = "Missing ID")
+        }
+        val jsonBody = JSONObject(postData)
+        if (!jsonBody.has("itemId")) {
+            return ServiceResult(success = false, message = "'itemId' is missing")
+        }
+        val performerId=jsonBody.getString("itemId").toLongOrNull()
+        if(performerId==null){
+            return ServiceResult(success = false, message = "itemId is not valid")
+        }
+
+        val videoActressCrossRef= VideoActressCrossRef(fileId,performerId)
+        val result=database.videoActressCrossRefDao().insertVideoActressCrossRef(videoActressCrossRef)
+
+        if(result==1L){
+            return ServiceResult(success = false, message = "insert operation failed")
+        }
+        return ServiceResult(success = true, message = "Performer added successfully")
+    }
+
+    fun getFileDetails(fileId: Long?): ServiceResult {
+        if(fileId==null){
+            return ServiceResult(success = false, message = "Missing ID")
+        }
+
+        val result=database.fileDao().getFileWithPerformers(fileId)
+        if(result.isEmpty()){
+            return ServiceResult(success = false, message = "No details found")
+        }
+
+        val name=result.first().fileName
+        val id=result.first().fileId
+        val items:MutableList<Item> =  mutableListOf()
+
+        for(item in result){
+            if(item.performerId!=null && item.performerName!=null){
+                items.add(Item(item.performerId,item.performerName))
+            }
+        }
+
+        val fileDetails= FileDetails(name,id,items)
+        val gson: Gson = GsonBuilder().create()
+        val jsonContent: String = gson.toJson(fileDetails)
+        return ServiceResult(success = true, message = jsonContent)
+
+    }
     fun streamFile(fileId: Long, context: Context, database: AppDatabase, headers: Map<String, String>): NanoHTTPD.Response {
 
         val fileMeta = database.fileDao().getFileById(fileId)
@@ -68,11 +125,7 @@ class FileService {
         } catch (e: Exception) {
             e.printStackTrace()
             val responseContent= mapOf("message" to "Error when streaming file")
-            return NanoHTTPD.newFixedLengthResponse(
-                NanoHTTPD.Response.Status.NOT_FOUND,
-                "application/json",
-                gson.toJson(responseContent)
-            )
+            return newFixedLengthResponse(Status.NOT_FOUND, "application/json", gson.toJson(responseContent))
         }
     }
 
@@ -143,8 +196,8 @@ class FileService {
                 mimeType,
                 fileInputStream
             )
-            Log.d("MKServer Video","INSIDE RETURN PARTIAL-RESPONSE and rangeHeader $rangeHeader")
-            Log.d("MKServer Video"," Start:$start End:$end FileLength:$fileLength")
+            //Log.d("MKServer Video","INSIDE RETURN PARTIAL-RESPONSE and rangeHeader $rangeHeader")
+            //Log.d("MKServer Video"," Start:$start End:$end FileLength:$fileLength")
             response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", contentLength.toString())
             response.addHeader("Content-Range", "bytes $start-$end/$fileLength")

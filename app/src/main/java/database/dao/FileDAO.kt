@@ -57,5 +57,31 @@ interface FileDAO {
 
     @Query("SELECT * FROM file_meta INNER JOIN video_category_cross_ref ON file_meta.fileId = video_category_cross_ref.fileId INNER JOIN actress ON video_category_cross_ref.categoryId = actress.actressId")
     fun getFilesAndActress(): Map<FileMeta, List<Actress>>
-
+    @Query("""
+        SELECT  file_meta.fileId as fileId,  file_meta.file_name as fileName, actress.actressId as performerId, actress.name as performerName
+        FROM file_meta
+        LEFT JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
+        INNER JOIN actress ON video_actress_cross_ref.actressId = actress.actressId
+        WHERE file_meta.fileId = :fileId
+    """)
+    fun getFileWithPerformers(fileId: Long): List<FileDetailsWithPerformers>
 }
+
+data class Item(
+    val id: Long,
+    val name: String
+)
+
+data class FileDetails(
+    val name: String,
+    val id: Long,
+    val performers: List<Item>
+)
+
+
+data class FileDetailsWithPerformers(
+    val fileId: Long,
+    val fileName: String,
+    val performerId: Long?,
+    val performerName: String?
+)

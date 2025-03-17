@@ -63,7 +63,7 @@ class FileService(private val database: AppDatabase) {
         val videoActressCrossRef= VideoActressCrossRef(fileId,performerId)
         val result=database.videoActressCrossRefDao().insertVideoActressCrossRef(videoActressCrossRef)
 
-        if(result==1L){
+        if(result==-1L){
             return ServiceResult(success = false, message = "insert operation failed")
         }
         return ServiceResult(success = true, message = "Performer added successfully")

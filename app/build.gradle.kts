@@ -7,7 +7,7 @@ plugins {
 android {
     signingConfigs {
         getByName("debug") {
-            storeFile = file("/Users/raja/project/app keystore/debug.keystore")
+            storeFile = file("C:\\Users\\rajas\\.android\\debug.keystore")
             keyAlias = "androiddebugkey"
             keyPassword = "android"
             storePassword = "android"

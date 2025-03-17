@@ -22,7 +22,7 @@ import database.jointable.VideoCategoryCrossRef
 
 @Database(
     entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class],
-    version = 3,exportSchema = false
+    version = 5,exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDAO
@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,MIGRATION_4_5).build()
                 INSTANCE = instance
                 return instance
             }
@@ -87,16 +87,10 @@ abstract class AppDatabase : RoomDatabase() {
             )
         """.trimIndent())
 
-                // Step 2: Copy data from the old table
-                db.execSQL("""
-            INSERT INTO video_actress_cross_ref_new (fileId, actressId)
-            SELECT fileId, actressId FROM video_actress_cross_ref
-        """)
-
-                // Step 3: Delete old table
+                // Step 2: Delete old table
                 db.execSQL("DROP TABLE video_actress_cross_ref")
 
-                // Step 4: Rename new table to old table name
+                // Step 3: Rename new table to old table name
                 db.execSQL("ALTER TABLE video_actress_cross_ref_new RENAME TO video_actress_cross_ref")
             }
         }
@@ -114,16 +108,11 @@ abstract class AppDatabase : RoomDatabase() {
             )
         """.trimIndent())
 
-                // Step 2: Copy data from the old table
-                db.execSQL("""
-            INSERT INTO video_category_cross_ref_new (fileId, categoryId)
-            SELECT fileId, categoryId FROM video_category_cross_ref
-        """)
 
-                // Step 3: Delete old table
+                // Step 2: Delete old table
                 db.execSQL("DROP TABLE video_category_cross_ref")
 
-                // Step 4: Rename new table to old table name
+                // Step 3: Rename new table to old table name
                 db.execSQL("ALTER TABLE video_category_cross_ref_new RENAME TO video_category_cross_ref")
             }
         }

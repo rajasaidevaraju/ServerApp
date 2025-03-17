@@ -141,6 +141,7 @@ fun FrontEndServer(mainActivityViewModel: MainActivityViewModel) {
         buttonText = "Edit Address",
         buttonAction = { ->showDialog = true  }
     )
+    // TODO: add validation to the below input
     if(showDialog){
         MinimalDialog( frontEndUrl = frontEndUrl,onDismissRequest = {->showDialog=false},
             onSave = {frontEndUrlFromDialogBox:String->

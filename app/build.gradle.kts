@@ -5,6 +5,14 @@ plugins {
 }
 
 android {
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("/Users/raja/project/app keystore/debug.keystore")
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storePassword = "android"
+        }
+    }
     namespace = "com.example.serverapp"
     compileSdk = 35
 

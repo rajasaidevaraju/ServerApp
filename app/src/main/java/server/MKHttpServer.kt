@@ -30,6 +30,7 @@ import java.io.StringWriter
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.URI
 import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
@@ -530,25 +531,43 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun addCorsHeaders(response: Response,url: String?=null) {
 
-        val backEndUrl=prefHandler.getBackEndUrl()
+        val backEndUrl = prefHandler.getBackEndUrl()
         var allowOrigin = "*"
-        if(url!=null && url.contains("10.0.0.")){
-            allowOrigin=url
-            if(!allowOrigin.startsWith("http://")){
-                allowOrigin="http://$allowOrigin"
+
+        if (url != null) {
+            val host = extractHostname(url)
+
+            if (host != null && isLocalNetwork(host)) {
+                allowOrigin = if (url.startsWith("http://") || url.startsWith("https://")) url else "http://$url"
             }
         }
-        else if(backEndUrl!=null){
-            allowOrigin=backEndUrl
-            if(!allowOrigin.startsWith("http://")){
-                allowOrigin="http://$allowOrigin"
-            }
+        else if (backEndUrl != null) {
+            allowOrigin = if (backEndUrl.startsWith("http://") || backEndUrl.startsWith("https://")) backEndUrl else "http://$backEndUrl"
         }
+
 
         response.addHeader("Access-Control-Allow-Origin", allowOrigin)
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "origin, content-type, accept, authorization")
         response.addHeader("Access-Control-Allow-Credentials", "true")
+    }
+
+    private fun extractHostname(url: String): String? {
+        return try {
+            val uri = URI(url)
+            uri.host ?: url
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun isLocalNetwork(host: String): Boolean {
+        val localPatterns = listOf(
+            Regex("""^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$"""),   // 10.x.x.x
+            Regex("""^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$"""), // 172.16.x.x - 172.31.x.x
+            Regex("""^192\.168\.\d{1,3}\.\d{1,3}$""") // 192.168.x.x
+        )
+        return localPatterns.any { it.matches(host) }
     }
 
     private fun getExceptionString(exception:Exception):String{

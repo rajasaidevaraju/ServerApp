@@ -35,6 +35,7 @@ import java.text.DateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.Locale
+import java.util.Timer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.fixedRateTimer
@@ -79,15 +80,15 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val activeServers = ConcurrentHashMap<String,Instant>()
     private val broadcastPort = 6789
     private val broadcastInterval = 5000L
-    private var broadcastThread: Thread? = null
+    private var broadcastTimer: Timer? = null
     private var listeningThread: Thread? = null
     private val dbService by lazy { DBService() }
 
 
     override fun start() {
-        isRunning.set(super.isAlive())
         if (!isRunning.get()) {
             super.start()
+            isRunning.set(super.isAlive())
             startBroadcasting()
             startListeningForBroadcasts()
         }
@@ -105,31 +106,45 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun startBroadcasting() {
 
-        broadcastThread = Thread {
-            fixedRateTimer(period = broadcastInterval) {
-                val format: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.US)
-                val timeStamp=format.format(Date())
-                var message ="$timeStamp: Server active at: ${InetAddress.getLocalHost().hostAddress} "
-                var ipAddress=networkHandler.getIpAddress(context)
-                if(ipAddress!=null){
-                    if(ipAddress == "null"){
-                        ipAddress="localhost"
-                    }
-                    message ="$timeStamp: Server active at: $ipAddress"
+        broadcastTimer= fixedRateTimer(period = broadcastInterval,daemon=true, name = "broadcastTimer") {
+
+            val format: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.US)
+            val timeStamp=format.format(Date())
+
+            var message ="$timeStamp: Server active at: ${InetAddress.getLocalHost().hostAddress} "
+            var ipAddress=networkHandler.getIpAddress(context)
+
+            if(ipAddress!=null){
+                if(ipAddress == "null"){
+                    ipAddress="localhost"
                 }
+                message ="$timeStamp: Server active at: $ipAddress"
+            }
+            try{
+
                 val socket = DatagramSocket()
                 val broadcastAddress = InetAddress.getByName("255.255.255.255")
                 val buffer = message.toByteArray()
-                if (!isRunning.get()) cancel()
+
+                if (!isRunning.get()){
+                    cancel()
+                    return@fixedRateTimer
+                }
                 val packet = DatagramPacket(buffer, buffer.size, broadcastAddress, broadcastPort)
                 socket.send(packet)
+                socket.close()
+
+            }catch (e:Exception){
+                Log.e("MKServer Broadcast ex","Broadcasting "+getExceptionString(e))
             }
-        }.apply { start() }
+
+        }
+
     }
 
     private fun stopBroadcasting() {
-        broadcastThread?.interrupt()
-        broadcastThread = null
+        broadcastTimer?.cancel()
+        broadcastTimer = null
     }
 
     private fun startListeningForBroadcasts() {
@@ -153,6 +168,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                         }
                     }
                 } catch (e: Exception) {
+                    Log.e("MKServer Broadcast ex","listening "+getExceptionString(e))
                     if (!isRunning.get()) break
                 }
             }

@@ -283,12 +283,8 @@ class FileController(private val context: Context, private val database: AppData
         rows.addAll(tempRows)
 
         val notInsertedRows = rows.count { it == -1L }
-        val responseContent = mapOf(
-            "insertions_attempted" to rows.size,
-            "not_inserted" to notInsertedRows,
-            "inserted" to rows.size - notInsertedRows
-        )
-        return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, gson.toJson(responseContent))
+
+        return okRequest("${rows.size - notInsertedRows} files inserted successfully")
     }
 
     private fun deleteFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {

@@ -82,9 +82,12 @@ class FileController(private val context: Context,
             }
             paginatedFileData=fileDao.getFilesWithPerformerPaginated(offset, pageSize,performerId)
         }
+        val totalFiles:Int = if(performerId==null) {
+            fileDao.getTotalFileCount()
+        } else{
+            database.videoActressCrossRefDao().getVideosForActress(performerId).size
+        }
 
-
-        val totalFiles = fileDao.getTotalFileCount()
         if (paginatedFileData.isEmpty()) {
             return notFound("No files found")
         }

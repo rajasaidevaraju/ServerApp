@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap
 data class Session(
     val userId: Long,
     val createdAt: Instant = Instant.now(),
-    val expiresAt: Instant = Instant.now().plusSeconds(15 * 60)
+    val expiresAt: Instant = Instant.now().plusSeconds(120 * 60 * 1000L)
 )
 
 class SessionManager {

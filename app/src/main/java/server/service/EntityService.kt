@@ -35,7 +35,7 @@ class EntityService(private val database: AppDatabase) {
         }
         val entityNames = mutableListOf<String>()
         for (i in 0 until namesArray.length()) {
-            val name = namesArray.optString(i).trim()
+            var name = namesArray.optString(i).trim()
             if(!validateEntityName(name)){
                 val message = when (entityType) {
                     EntityType.Performers -> "Invalid performer name"
@@ -43,6 +43,7 @@ class EntityService(private val database: AppDatabase) {
                 }
                 return ServiceResult(success = false, message = message)
             }
+            name=name.trim()
             entityNames.add(name)
         }
 
@@ -101,7 +102,7 @@ class EntityService(private val database: AppDatabase) {
         if (!jsonBody.has("updatedName") || jsonBody.get("updatedName") !is String) {
             return ServiceResult(success = false, message = "'updatedName' is missing or not an string")
         }
-        val updatedName=jsonBody.getString("updatedName")
+        var updatedName=jsonBody.getString("updatedName")
         if(!validateEntityName(updatedName)){
             val message = when (entityType) {
                 EntityType.Performers -> "Invalid performer name"
@@ -109,6 +110,7 @@ class EntityService(private val database: AppDatabase) {
             }
             return ServiceResult(success = false, message = message)
         }
+        updatedName=updatedName.trim()
         if (entityType == EntityType.Performers) {
             val performer= database.actressDao().getActressById(id)
                 ?: return ServiceResult(success = false, message = "Performer with ID $id not found")

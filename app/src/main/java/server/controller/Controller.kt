@@ -4,14 +4,15 @@ import fi.iki.elonen.NanoHTTPD
 import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import helpers.SharedPreferencesHelper
 import java.io.PrintWriter
 import java.io.StringWriter
 
 interface Controller {
-    fun handleRequest(method: NanoHTTPD.Method, url: String, session: NanoHTTPD.IHTTPSession, sdCardURI: Uri?, internalURI: Uri): NanoHTTPD.Response
+    fun handleRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response
 }
 
-abstract class BaseController : Controller{
+abstract class BaseController(private val prefHandler: SharedPreferencesHelper) : Controller{
     protected val MIME_JSON = "application/json"
     protected val gson: Gson = GsonBuilder().create()
 
@@ -43,5 +44,9 @@ abstract class BaseController : Controller{
         exception.printStackTrace(printWriter)
         return stringWriter.toString()
     }
+
+    protected fun getSdCardURI() = prefHandler.getSDCardURI()
+
+    protected fun getInternalURI() = prefHandler.getInternalURI()
 
 }

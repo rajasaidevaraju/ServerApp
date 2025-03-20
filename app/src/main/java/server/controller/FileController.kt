@@ -3,13 +3,13 @@ package server.controller
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import database.AppDatabase
 import database.entity.FileMeta
+import database.entity.SimplifiedFileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.FileHandlerHelper
+import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
 import server.service.NetworkService
@@ -17,14 +17,18 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class FileController(private val context: Context, private val database: AppDatabase, private val fileService: FileService, private val networkService: NetworkService, private val fileHandlerHelper: FileHandlerHelper, private val dbService: DBService): BaseController() {
+class FileController(private val context: Context,
+                     private val database: AppDatabase, private val fileService: FileService,
+                     private val networkService: NetworkService, private val fileHandlerHelper: FileHandlerHelper,
+                     private val dbService: DBService,  prefHandler: SharedPreferencesHelper
+) : BaseController(prefHandler) {
 
     private val fileDao = database.fileDao()
-    override fun handleRequest(method: NanoHTTPD.Method, url: String, session: NanoHTTPD.IHTTPSession, sdCardURI: Uri?, internalURI: Uri): NanoHTTPD.Response {
-        return when (method) {
+    override fun handleRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        return when (session.method) {
             NanoHTTPD.Method.GET -> handleGetRequest(url, session)
-            NanoHTTPD.Method.POST -> handlePostRequest(url, session, sdCardURI, internalURI)
-            NanoHTTPD.Method.DELETE -> handleDeleteRequest(url, session, sdCardURI, internalURI)
+            NanoHTTPD.Method.POST -> handlePostRequest(url, session)
+            NanoHTTPD.Method.DELETE -> handleDeleteRequest(url, session)
             else -> notFound()
         }
     }
@@ -39,17 +43,17 @@ class FileController(private val context: Context, private val database: AppData
         }
     }
 
-    private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession, sdCardURI: Uri?, internalURI: Uri): NanoHTTPD.Response {
+    private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         when {
-            url=="/file" -> return uploadFile(session, internalURI)
+            url=="/file" -> return uploadFile(session, getInternalURI())
             url.startsWith("/file")&& url.endsWith("/performer") -> return addPerformerToFile(url,session)
             url=="/thumbnail" -> return updateThumbnail(session)
-            url== "/scan" -> return scanFolders(sdCardURI, internalURI)
+            url== "/scan" -> return scanFolders(getSdCardURI(), getInternalURI())
             else -> return notFound()
         }
     }
 
-    private fun handleDeleteRequest(url: String, session: NanoHTTPD.IHTTPSession, sdCardURI: Uri?, internalURI: Uri): NanoHTTPD.Response {
+    private fun handleDeleteRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         when (url) {
             "/file" -> return deleteFile(session)
             "/cleanup" -> return cleanupDatabase()
@@ -60,13 +64,26 @@ class FileController(private val context: Context, private val database: AppData
     private fun getFiles(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val params = session.parameters
         val page = params["page"]?.firstOrNull()
+        val performerId=params["performerId"]?.firstOrNull()?.toLongOrNull()
         var pageNo = 1
         val pageSize = 18
         if (!page.isNullOrBlank()) {
             pageNo = page.toIntOrNull() ?: 1
         }
         val offset = (pageNo - 1) * pageSize
-        val paginatedFileData = fileDao.getSimplifiedFilesMetaPagenated(offset, pageSize)
+
+        val paginatedFileData:List<SimplifiedFileMeta>
+        if(performerId==null){
+            paginatedFileData=fileDao.getFilesPaginated(offset, pageSize)
+        }else{
+            val actress=database.actressDao().getActressById(performerId)
+            if(actress==null){
+                return notFound("performer with id $performerId not found")
+            }
+            paginatedFileData=fileDao.getFilesWithPerformerPaginated(offset, pageSize,performerId)
+        }
+
+
         val totalFiles = fileDao.getTotalFileCount()
         if (paginatedFileData.isEmpty()) {
             return notFound("No files found")
@@ -80,7 +97,7 @@ class FileController(private val context: Context, private val database: AppData
             )
         )
         val jsonContent: String = gson.toJson(responseContent)
-        return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
+        return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
     }
 
     private fun getFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
@@ -98,7 +115,12 @@ class FileController(private val context: Context, private val database: AppData
         }
     }
 
-    private fun uploadFile(session: NanoHTTPD.IHTTPSession, internalURI: Uri): NanoHTTPD.Response {
+    private fun uploadFile(session: NanoHTTPD.IHTTPSession, internalURI: Uri?): NanoHTTPD.Response {
+
+        if(internalURI==null){
+            return internalServerError(null,"Choose a root folder")
+        }
+
         val destinationDir = DocumentFile.fromTreeUri(context, internalURI)
         if (destinationDir == null || destinationDir.isFile) {
             return internalServerError(null,"Could not store the file")
@@ -272,7 +294,12 @@ class FileController(private val context: Context, private val database: AppData
         }
     }
 
-    private fun scanFolders(sdCardURI: Uri?, internalURI: Uri): NanoHTTPD.Response {
+    private fun scanFolders(sdCardURI: Uri?, internalURI: Uri?): NanoHTTPD.Response {
+
+        if(internalURI==null){
+            return internalServerError(null,"Choose a root folder")
+        }
+
         val rows: MutableList<Long> = mutableListOf()
         if (sdCardURI != null) {
             val tempRows = fileService.scanFolder(sdCardURI, fileHandlerHelper, database)

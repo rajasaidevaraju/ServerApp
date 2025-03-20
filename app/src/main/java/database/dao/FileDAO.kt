@@ -26,7 +26,7 @@ interface FileDAO {
     fun getSimplifiedFilesMeta(): List<SimplifiedFileMeta>
 
     @Query("SELECT fileId, file_name FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
-    fun getSimplifiedFilesMetaPagenated(offset:Int, pageSize:Int): List<SimplifiedFileMeta>
+    fun getFilesPaginated(offset:Int, pageSize:Int): List<SimplifiedFileMeta>
 
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
@@ -65,6 +65,13 @@ interface FileDAO {
         WHERE file_meta.fileId = :fileId
     """)
     fun getFileWithPerformers(fileId: Long): List<FileDetailsWithPerformers>
+
+
+    @Query("""SELECT file_meta.fileId, file_meta.file_name FROM file_meta
+            INNER JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
+            WHERE video_actress_cross_ref.actressId=:performerId
+            ORDER BY file_meta.fileId DESC LIMIT :pageSize OFFSET :offset""")
+    fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<SimplifiedFileMeta>
 }
 
 data class Item(

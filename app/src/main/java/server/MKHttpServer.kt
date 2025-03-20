@@ -18,6 +18,7 @@ import helpers.FileHandlerHelper
 import helpers.NetworkHelper
 import helpers.SharedPreferencesHelper
 import server.controller.FileController
+import server.controller.PerformerController
 import server.service.DBService
 import server.service.EntityService
 import server.service.EntityType
@@ -75,7 +76,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val userService by lazy {UserService(database,sessionManager)}
     private val entityService by lazy {EntityService(database)}
     private val fileService by lazy { FileService(database) }
-    private val fileController by lazy { FileController(context,database,fileService,networkService,fileHandlerHelper,dbService) }
+    private val fileController by lazy { FileController(context,database,fileService,networkService,fileHandlerHelper,dbService,prefHandler) }
+    private val performerController by lazy { PerformerController(database, entityService,prefHandler) }
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
     private val broadcastPort = 6789
@@ -193,12 +195,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val jsonContent: String = gson.toJson(responseContent)
                 response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
             }
-            "/performers"->{
-                val performers=database.actressDao().getAllActresses()
-                val jsonContent: String = gson.toJson(performers)
-                response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
-            }
-
             "/servers"->{
                 val oneMinuteAgo = Instant.now().minusSeconds(60)
                 val list=ArrayList<String>()
@@ -347,31 +343,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 }
             }
 
-            "/performers"->{
-                val postBody=HashMap<String,String>()
-                session.parseBody(postBody)
-                val postData=postBody["postData"]
-
-                val result=entityService.addEntities(EntityType.Performers, postData)
-                return if(result.success){
-                    newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                }else {
-                    newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                }
-            }
-            "/deletePerformers"->{
-                val postBody=HashMap<String,String>()
-                session.parseBody(postBody)
-                Log.d("MKServer request body delete",postBody.keys.joinToString { ", " })
-                val postData=postBody["postData"]
-                val result=entityService.deleteEntities(EntityType.Performers, postData)
-                return if(result.success){
-                    newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                }else{
-                    newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                }
-            }
-
         }
         return response
     }
@@ -388,25 +359,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             Status.NOT_FOUND, MIME_JSON,
             gson.toJson(mapOf("message" to "The requested resource could not be found"))
         )
-        when(url){
-            "/performer"->{
-                try {
-                    val postBody=HashMap<String,String>()
-                    session.parseBody(postBody)
-                    val postData=postBody["postData"]
-                    val uri = session.uri.split("/")
-                    val id =uri[uri.size-1].toLongOrNull()
-                    val result=entityService.updateEntity(EntityType.Performers, postData,id)
-                    return if(result.success){
-                        newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                    }else {
-                        newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to result.message)))
-                    }
-                }catch (exception:Exception){
-                    return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "Update operation failed")))
-                }
-            }
-        }
         return response
     }
 
@@ -451,9 +403,15 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 return authResponse
             }
             //Log.d("MKServer url", url)
-            //code for moving to individual controller classes
+
             if(url.startsWith("/file") || url == "/thumbnail" || url == "/name" || url == "/scan" || url == "/cleanup"){
-                response= fileController.handleRequest(session.method, url, session, sdCardURI, internalURI)
+                response= fileController.handleRequest(url, session)
+                addCorsHeaders(response,session.headers["origin"])
+                return response
+            }
+
+            if(url.startsWith("/performer")||url=="/deletePerformers"){
+                response=performerController.handleRequest(url,session)
                 addCorsHeaders(response,session.headers["origin"])
                 return response
             }

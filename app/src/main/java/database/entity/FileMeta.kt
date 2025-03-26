@@ -18,10 +18,22 @@ data class FileMeta(
     @ColumnInfo(name = "file_name")
     val fileName: String,
     @ColumnInfo(name = "file_uri")
-    val fileUri: Uri,
+    var fileUri: Uri,
     @ColumnInfo(name = "screenshot_data")
     val screenshotData: String? = null
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is FileMeta) return false
+        return fileName == other.fileName && fileUri.toString() == other.fileUri.toString()
+    }
+
+    override fun hashCode(): Int {
+        var result = fileName.hashCode()
+        result = 31 * result + fileUri.hashCode()
+        return result
+    }
+}
 
 data class SimplifiedFileMeta(
     val fileId: Int,

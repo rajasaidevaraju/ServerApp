@@ -75,8 +75,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val sessionManager = SessionManager()
     private val userService by lazy {UserService(database,sessionManager)}
     private val entityService by lazy {EntityService(database)}
-    private val fileService by lazy { FileService(database) }
-    private val fileController by lazy { FileController(context,database,fileService,networkService,fileHandlerHelper,dbService,prefHandler) }
+    private val fileService by lazy { FileService(database,fileHandlerHelper) }
+    private val fileController by lazy { FileController(context,database,fileService,networkService,dbService,prefHandler) }
     private val performerController by lazy { PerformerController(database, entityService,prefHandler) }
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
@@ -404,7 +404,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
             //Log.d("MKServer url", url)
 
-            if(url.startsWith("/file") || url == "/thumbnail" || url == "/name" || url == "/scan" || url == "/cleanup"){
+            if(url.startsWith("/file") || url == "/thumbnail" || url == "/name" || url == "/scan" || url == "/cleanup"|| url == "/repair"){
                 response= fileController.handleRequest(url, session)
                 addCorsHeaders(response,session.headers["origin"])
                 return response

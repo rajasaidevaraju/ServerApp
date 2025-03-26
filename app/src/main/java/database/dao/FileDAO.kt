@@ -49,6 +49,9 @@ interface FileDAO {
     @Update
     fun updateFile(fileMeta: FileMeta)
 
+    @Update
+    fun updateFiles(fileMetas: List<FileMeta>): Int
+
     @Query("UPDATE file_meta SET screenshot_data = :screenshotData WHERE fileId = :fileId")
     fun updateScreenshotData(fileId: Long, screenshotData: String)
 

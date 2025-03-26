@@ -8,7 +8,6 @@ import database.entity.FileMeta
 import database.entity.SimplifiedFileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
-import helpers.FileHandlerHelper
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
@@ -19,7 +18,7 @@ import java.time.format.DateTimeFormatter
 
 class FileController(private val context: Context,
                      private val database: AppDatabase, private val fileService: FileService,
-                     private val networkService: NetworkService, private val fileHandlerHelper: FileHandlerHelper,
+                     private val networkService: NetworkService,
                      private val dbService: DBService,  prefHandler: SharedPreferencesHelper
 ) : BaseController(prefHandler) {
 
@@ -28,6 +27,7 @@ class FileController(private val context: Context,
         return when (session.method) {
             NanoHTTPD.Method.GET -> handleGetRequest(url, session)
             NanoHTTPD.Method.POST -> handlePostRequest(url, session)
+            NanoHTTPD.Method.PUT -> handlePutRequest(url, session)
             NanoHTTPD.Method.DELETE -> handleDeleteRequest(url, session)
             else -> notFound()
         }
@@ -49,6 +49,13 @@ class FileController(private val context: Context,
             url.startsWith("/file")&& url.endsWith("/performer") -> return addPerformerToFile(url,session)
             url=="/thumbnail" -> return updateThumbnail(session)
             url== "/scan" -> return scanFolders(getSdCardURI(), getInternalURI())
+            else -> return notFound()
+        }
+    }
+
+    private fun handlePutRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        when {
+            url=="/repair" -> return repairPath(getInternalURI(),getSdCardURI())
             else -> return notFound()
         }
     }
@@ -112,7 +119,7 @@ class FileController(private val context: Context,
         }
         return try {
             val fileId = fileIdStr.toLong()
-            fileService.streamFile(fileId, context, database, session.headers)
+            fileService.streamFile(fileId, context, session.headers)
         } catch (exception: Exception) {
             internalServerError(exception,"Invalid File ID")
         }
@@ -133,7 +140,7 @@ class FileController(private val context: Context,
             val contentLength = session.headers["content-length"]!!.toLong()
             val threeGBInBytes = 3L * 1024 * 1024 * 1024
             if (fileService.getFreeInternalMemorySize() - contentLength < threeGBInBytes) {
-                return NanoHTTPD.newFixedLengthResponse(
+                return newFixedLengthResponse(
                     ExtendedStatus.INSUFFICIENT_STORAGE,
                     MIME_JSON,
                     gson.toJson(mapOf("message" to "Not enough storage."))
@@ -305,11 +312,11 @@ class FileController(private val context: Context,
 
         val rows: MutableList<Long> = mutableListOf()
         if (sdCardURI != null) {
-            val tempRows = fileService.scanFolder(sdCardURI, fileHandlerHelper, database)
+            val tempRows = fileService.scanFolder(sdCardURI)
             rows.addAll(tempRows)
         }
 
-        val tempRows = fileService.scanFolder(internalURI, fileHandlerHelper, database)
+        val tempRows = fileService.scanFolder(internalURI)
         rows.addAll(tempRows)
 
         val notInsertedRows = rows.count { it == -1L }
@@ -317,6 +324,17 @@ class FileController(private val context: Context,
         return okRequest("${rows.size - notInsertedRows} files inserted successfully")
     }
 
+    private fun repairPath(internalURI: Uri?, sdCardURI: Uri?): NanoHTTPD.Response {
+        try {
+            if(internalURI==null){
+                return internalServerError(null,"Choose a root folder")
+            }
+            val result=fileService.repairPath(internalURI, sdCardURI)
+            return okRequest(result.message)
+        } catch (e: Exception) {
+            return internalServerError(e,"Repair operation failed")
+        }
+    }
     private fun deleteFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val params = session.parameters
         val fileIdStr = params["fileId"]?.firstOrNull()
@@ -350,7 +368,7 @@ class FileController(private val context: Context,
             "rows_deleted" to removedEntries
         )
         val jsonContent: String = gson.toJson(responseContent)
-        return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
+        return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
     }
 
     //example url POST /server/file/{fileId}/performers

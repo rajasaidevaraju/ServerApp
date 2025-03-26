@@ -11,6 +11,7 @@ import com.google.gson.GsonBuilder
 import database.AppDatabase
 import database.dao.FileDetails
 import database.dao.Item
+import database.entity.FileMeta
 import database.jointable.VideoActressCrossRef
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
@@ -22,9 +23,10 @@ import java.io.IOException
 import java.io.InputStream
 
 
-class FileService(private val database: AppDatabase) {
+class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper) {
 
     private val mimeType = "video/mp4"
+    private val fileDao=database.fileDao()
 
     fun getFreeInternalMemorySize(): Long {
         val path = Environment.getDataDirectory()
@@ -36,10 +38,16 @@ class FileService(private val database: AppDatabase) {
         return freeSpace
     }
 
-    fun scanFolder(selectedDirectoryUri: Uri, fileHandlerHelper: FileHandlerHelper, database:AppDatabase): List<Long> {
+    fun scanFolder(selectedDirectoryUri: Uri): List<Long> {
         val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
-        val rows=database.fileDao().insertFiles(fileMetas)
-        return rows
+        val fileMetaFromDb=fileDao.getAllFiles().toSet()
+        val newFiles = fileMetas.filter { it !in fileMetaFromDb }
+        if (newFiles.isNotEmpty()) {
+            val rows = fileDao.insertFiles(newFiles)
+            return rows
+        } else {
+            return emptyList()
+        }
     }
 
 
@@ -69,12 +77,50 @@ class FileService(private val database: AppDatabase) {
         return ServiceResult(success = true, message = "Performer added successfully")
     }
 
+    fun repairPath(internalURI:Uri, sdCardURI:Uri?):ServiceResult{
+
+        val fileMetaMap=mutableMapOf<String, FileMeta>()
+        val filesInFileSystem= mutableListOf<FileMeta>()
+        val filesToRepair= mutableListOf<FileMeta>()
+        filesInFileSystem.addAll(fileHandlerHelper.getAllFilesMetaInDirectory(internalURI))
+        if(sdCardURI!=null){
+            filesInFileSystem.addAll(fileHandlerHelper.getAllFilesMetaInDirectory(sdCardURI))
+        }
+
+        if(filesInFileSystem.isEmpty()){
+            return ServiceResult(true,"No files found in the file system")
+        }
+
+        val filesInDb= fileDao.getAllFiles()
+        for(file in filesInDb){
+            fileMetaMap[file.fileName]=file
+        }
+
+        for(file in filesInFileSystem) {
+
+            val fileName=file.fileName
+            val fileInDb=fileMetaMap[fileName]
+            if(fileInDb!=null && fileInDb!=file){
+                //found the file in DB with same filename but different uri
+                fileInDb.fileUri=file.fileUri
+                filesToRepair.add(fileInDb)
+            }
+        }
+
+        if(filesToRepair.isNotEmpty()) {
+            val updateCount=fileDao.updateFiles(filesToRepair)
+            return ServiceResult(success = true, message = "Repaired $updateCount files")
+        }else{
+            return ServiceResult(success = true, message = "No files to repair")
+        }
+
+    }
     fun getFileDetails(fileId: Long?): ServiceResult {
         if(fileId==null){
             return ServiceResult(success = false, message = "Missing ID")
         }
 
-        val result=database.fileDao().getFileWithPerformers(fileId)
+        val result=fileDao.getFileWithPerformers(fileId)
         if(result.isEmpty()){
             return ServiceResult(success = false, message = "No details found")
         }
@@ -95,9 +141,9 @@ class FileService(private val database: AppDatabase) {
         return ServiceResult(success = true, message = jsonContent)
 
     }
-    fun streamFile(fileId: Long, context: Context, database: AppDatabase, headers: Map<String, String>): NanoHTTPD.Response {
+    fun streamFile(fileId: Long, context: Context, headers: Map<String, String>): NanoHTTPD.Response {
 
-        val fileMeta = database.fileDao().getFileById(fileId)
+        val fileMeta = fileDao.getFileById(fileId)
         val file = fileMeta?.let { DocumentFile.fromTreeUri(context, it.fileUri) }
         val gson: Gson = GsonBuilder().create()
 

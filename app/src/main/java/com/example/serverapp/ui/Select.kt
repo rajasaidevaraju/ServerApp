@@ -7,19 +7,25 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,41 +36,57 @@ import helpers.FileHandlerHelper
 
 
 @Composable
-fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLauncherSDCard: ActivityResultLauncher<Uri?>, requestPermissionLauncherInternal: ActivityResultLauncher<Uri?>, fileHandlerHelper:FileHandlerHelper){
+fun Select(
+    mainActivityViewModel: MainActivityViewModel,
+    requestPermissionLauncherSDCard: ActivityResultLauncher<Uri?>,
+    requestPermissionLauncherInternal: ActivityResultLauncher<Uri?>,
+    fileHandlerHelper: FileHandlerHelper
+) {
 
     val sdCardUri by mainActivityViewModel.sdCardUri.observeAsState(null)
     val internalUri by mainActivityViewModel.internalUri.observeAsState(null)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(10.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
-        ) {
+    StyledCard {
 
-            val sdCardFolderName=fileHandlerHelper.getFolderNameFromUri(sdCardUri)
-            if(fileHandlerHelper.isSdCardAvailable()){
+        val isSdCardAvailable = fileHandlerHelper.isSdCardAvailable()
+        val sdCardFolderName = fileHandlerHelper.getFolderNameFromUri(sdCardUri)
+            ?: "SD Card Folder not selected"
 
-                StyledText("SD Card Folder:")
-                if(sdCardFolderName==null){
-                    FolderSelectButton(requestPermissionLauncherSDCard)
-                }else{
-                    Text(sdCardFolderName,modifier = Modifier.padding(5.dp))
-                }
-                Text("")
+        if (isSdCardAvailable) {
+            StyledText("SD Card Folder:")
+
+            StyledRow {
+                Text(
+                    sdCardFolderName,
+                    modifier = Modifier.padding(5.dp),
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                FolderSelectButton(requestPermissionLauncherSDCard, sdCardUri != null)
             }
-            val internalFolderName=fileHandlerHelper.getFolderNameFromUri(internalUri)
+        }
 
-            StyledText("Internal Memory Folder:")
-            if(internalFolderName==null){
-                FolderSelectButton(requestPermissionLauncherInternal)
-            }else{
-                Text(internalFolderName,modifier = Modifier.padding(5.dp))
-            }
+        if (isSdCardAvailable) {
+            Divider(color = Color.LightGray, thickness = 1.dp)
+        }
 
+
+        StyledText("Internal Memory Folder:")
+
+        val internalFolderName = fileHandlerHelper.getFolderNameFromUri(internalUri)
+            ?: "Internal Storage Folder not selected"
+
+        StyledRow {
+            Text(
+                internalFolderName,
+                modifier = Modifier.padding(5.dp),
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            FolderSelectButton(requestPermissionLauncherInternal, internalUri != null)
         }
     }
 }
@@ -72,13 +94,18 @@ fun Select(mainActivityViewModel: MainActivityViewModel, requestPermissionLaunch
 
 
 @Composable
-fun FolderSelectButton(requestPermissionLauncher: ActivityResultLauncher<Uri?>) {
+fun FolderSelectButton(requestPermissionLauncher: ActivityResultLauncher<Uri?>,isFolderSelected:Boolean) {
+
+    val text= if (isFolderSelected) "Update Folder" else "Select Folder"
+
+
     Button(
         onClick = {
             requestPermissionLauncher.launch(null)
         }
     ) {
-        StyledText(text = "Select Folder")
+
+        StyledText(text = text)
     }
 }
 

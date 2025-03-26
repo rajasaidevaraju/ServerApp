@@ -4,8 +4,10 @@ import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -50,46 +53,39 @@ fun Info(mainActivityViewModel: MainActivityViewModel){
     val uiServerMode by mainActivityViewModel.uiServerMode.observeAsState(null)
     val context = LocalContext.current
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(10.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
-        ){
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledText(text = "Total rows in database:")
-                Spacer(Modifier.weight(1f))
-                Text(text = "$rowCount")
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val uiServerModeText="UI requests: ${if (uiServerMode==true) "Next.JS Server" else "Static Assets" }"
-                StyledText(text = uiServerModeText)
-                Spacer(Modifier.weight(1f))
-                Switch(
-                    checked = uiServerMode==true,
-                    onCheckedChange = { newValue ->
-                        mainActivityViewModel.setUIServerMode(newValue)
-                    }
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledText(text = "Manage Users:")
-                Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = {
-                        val intent = Intent(context, UserManagementActivity::class.java)
-                        context.startActivity(intent)
-                    }
-                ) {
-                    StyledText(text = "Manage")
+    StyledCard {
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StyledText(text = "Total rows in database:")
+            Spacer(Modifier.weight(1f))
+            Text(text = "$rowCount")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val uiServerModeText =
+                "UI requests: ${if (uiServerMode == true) "Next.JS Server" else "Static Assets"}"
+            StyledText(text = uiServerModeText)
+            Spacer(Modifier.weight(1f))
+            Switch(
+                checked = uiServerMode == true,
+                onCheckedChange = { newValue ->
+                    mainActivityViewModel.setUIServerMode(newValue)
                 }
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StyledText(text = "Manage Users:")
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = {
+                    val intent = Intent(context, UserManagementActivity::class.java)
+                    context.startActivity(intent)
+                }
+            ) {
+                StyledText(text = "Manage")
             }
         }
     }
+
 }
 
 @Composable
@@ -99,35 +95,26 @@ fun ServerCard(
     buttonText: String,
     buttonAction: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(10.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ServerImage()
-                Spacer(Modifier.weight(1f))
-                StyledText(text = serverName)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StyledText(text = "IP: ")
-                Spacer(Modifier.weight(1f))
-                DisplayIP(address = url)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = buttonAction
-                ) {
-                    StyledText(text = buttonText)
-                }
+    StyledCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ServerImage()
+            Spacer(Modifier.weight(1f))
+            StyledText(text = serverName)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StyledText(text = "IP: ")
+            Spacer(Modifier.weight(1f))
+            DisplayIP(address = url)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = buttonAction
+            ) {
+                StyledText(text = buttonText)
             }
         }
+
     }
 }
 
@@ -263,3 +250,39 @@ private fun StyledText(text: String) {
         fontSize=15.sp
     )
 }
+
+@Composable
+fun StyledCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(10.dp),
+        elevation = CardDefaults.cardElevation(4.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+fun StyledRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.SpaceBetween,
+    verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
+    content: @Composable RowScope.() -> Unit
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = horizontalArrangement,
+        verticalAlignment = verticalAlignment,
+        content = content
+    )
+}
+
+

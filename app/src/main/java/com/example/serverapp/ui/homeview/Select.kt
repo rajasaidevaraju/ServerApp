@@ -1,36 +1,24 @@
-package com.example.serverapp.ui
+package com.example.serverapp.ui.homeview
 
 
-import android.content.Context
-import android.content.Context.STORAGE_SERVICE
 import android.net.Uri
-import android.os.Environment
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat.getSystemService
+import com.example.serverapp.ui.CommonButton
+import com.example.serverapp.ui.StyledCard
+import com.example.serverapp.ui.StyledRow
+import com.example.serverapp.ui.StyledText
 import com.example.serverapp.viewmodel.MainActivityViewModel
 import helpers.FileHandlerHelper
 
@@ -67,7 +55,7 @@ fun Select(
         }
 
         if (isSdCardAvailable) {
-            Divider(color = Color.LightGray, thickness = 1.dp)
+            Divider(color = Color.LightGray, thickness = 2.dp, modifier = Modifier.padding(10.dp))
         }
 
 
@@ -92,38 +80,13 @@ fun Select(
 }
 
 
-
 @Composable
-fun FolderSelectButton(requestPermissionLauncher: ActivityResultLauncher<Uri?>,isFolderSelected:Boolean) {
-
-    val text= if (isFolderSelected) "Update Folder" else "Select Folder"
-
-
-    Button(
-        onClick = {
-            requestPermissionLauncher.launch(null)
-        }
-    ) {
-
-        StyledText(text = text)
-    }
+fun FolderSelectButton(
+    requestPermissionLauncher: ActivityResultLauncher<Uri?>,
+    isFolderSelected: Boolean
+) {
+    val text = if (isFolderSelected) "Update Folder" else "Select Folder"
+    CommonButton(buttonText = text, onClick = { requestPermissionLauncher.launch(null) })
 }
 
-@Composable
-private fun StyledText(text: String) {
 
-    Text(
-        text = text,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(5.dp),
-        fontWeight = FontWeight.Bold,
-        fontSize=15.sp
-    )
-}
-
-@Composable
-private fun NewLine(){
-    Row{
-
-    }
-}

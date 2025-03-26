@@ -194,7 +194,8 @@ class FileController(private val context: Context,
             return okRequest("File Stored Successfully")
         } catch (exception: Exception) {
             destinationFile?.delete()
-            return  internalServerError(exception,"Could not complete file upload")
+            val message=exception.message?:"Could not complete file upload"
+            return  internalServerError(exception,message)
         }
     }
 

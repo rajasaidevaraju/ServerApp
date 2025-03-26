@@ -7,16 +7,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.example.serverapp.ui.MinimalDialog
 import com.example.serverapp.ui.StyledError
 import kotlinx.coroutines.launch
 import com.example.serverapp.viewmodel.UserManagementViewModel
-import database.AppDatabase
 import database.entity.User
 import kotlinx.coroutines.CoroutineScope
 

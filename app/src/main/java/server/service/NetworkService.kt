@@ -81,6 +81,12 @@ class NetworkService {
 
         val fileName= extractFileName(data) ?: throw Exception("FileName not found in from data")
 
+        val allowedExtensions = setOf("mp4", "mkv", "avi", "mov", "flv", "wmv", "webm")
+        val extension = fileName.substringAfterLast('.', "")
+        if (!allowedExtensions.contains(extension)) {
+            throw Exception("Unsupported file type")
+        }
+
         val breakerArray="\r\n\r\n".toByteArray()
         var index=data.indexOf(breakerArray)
         if(index==-1){

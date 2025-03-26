@@ -81,6 +81,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
     private val broadcastPort = 6789
+    private var socket:DatagramSocket?=null
     private val broadcastInterval = 5000L
     private var broadcastTimer: Timer? = null
     private var listeningThread: Thread? = null
@@ -151,34 +152,40 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun startListeningForBroadcasts() {
         listeningThread = Thread {
-            val socket = DatagramSocket(broadcastPort)
+
             val buffer = ByteArray(1024)
 
-            while (isRunning.get()) {
-                try {
+            try {
+                socket = DatagramSocket(broadcastPort)
+                while (isRunning.get()) {
+
                     val packet = DatagramPacket(buffer, buffer.size)
-                    socket.receive(packet)
+                    socket!!.receive(packet)
                     val message = String(packet.data, 0, packet.length)
                     val senderIP = packet.address.hostAddress
-                    var deviceIP=networkHandler.getIpAddress(context)
-                    if(deviceIP!=null && senderIP!=null) {
+                    var deviceIP = networkHandler.getIpAddress(context)
+                    if (deviceIP != null && senderIP != null) {
                         if (deviceIP == "null") {
                             deviceIP = "localhost"
                         }
-                        if (message.contains("Server active at:") && senderIP!=deviceIP) {
+                        if (message.contains("Server active at:") && senderIP != deviceIP) {
                             activeServers[senderIP] = Instant.now()
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e("MKServer Broadcast ex","listening "+getExceptionString(e))
-                    if (!isRunning.get()) break
                 }
             }
-            socket.close()
+            catch (e: Exception) {
+                Log.e("MKServer Broadcast ex","listening "+getExceptionString(e))
+            }finally {
+                socket?.close()
+            }
+
         }.apply { start() }
     }
 
     private fun stopListeningForBroadcasts() {
+
+        socket?.close()
         listeningThread?.interrupt()
         listeningThread = null
     }

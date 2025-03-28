@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -101,15 +103,21 @@ fun CommonButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 6.dp,
-    content: @Composable () -> Unit = { StyledText(text = buttonText) },
+    content: @Composable () -> Unit = { Text(text = buttonText) },
     longPressToastMessage: String = "Long press detected"
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
+    val customPadding = PaddingValues(
+        start = 10.dp,
+        top = 5.dp,
+        end = 10.dp,
+        bottom = 5.dp
+    )
     Button(
         onClick = onClick,
         shape = RoundedCornerShape(cornerRadius),
+        contentPadding = customPadding,
         // Use combinedClickable for long press detection
         modifier = modifier.combinedClickable(
             onClick = onClick,

@@ -94,10 +94,7 @@ fun ServerCard(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             StyledText(text = "IP: ")
-            Spacer(Modifier.weight(1f))
             DisplayIP(address = url)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             CommonButton(onClick = buttonAction, buttonText = buttonText,longPressToastMessage=longPressToastMessage)
         }

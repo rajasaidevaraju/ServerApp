@@ -81,8 +81,10 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val MIME_JSON="application/json"
     private val activeServers = ConcurrentHashMap<String,Instant>()
     private val broadcastPort = 6789
-    private var socket:DatagramSocket?=null
+    private var listeningSocket:DatagramSocket?=null
+    private var broadcastingSocket:DatagramSocket?=null
     private val broadcastInterval = 5000L
+    private val CLEANUP_THRESHOLD_SECONDS = 60L
     private var broadcastTimer: Timer? = null
     private var listeningThread: Thread? = null
     private val dbService by lazy { DBService() }
@@ -108,6 +110,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     }
 
     private fun startBroadcasting() {
+        broadcastingSocket = DatagramSocket()
 
         broadcastTimer= fixedRateTimer(period = broadcastInterval,daemon=true, name = "broadcastTimer") {
 
@@ -124,8 +127,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 message ="$timeStamp: Server active at: $ipAddress"
             }
             try{
-
-                val socket = DatagramSocket()
                 val broadcastAddress = InetAddress.getByName("255.255.255.255")
                 val buffer = message.toByteArray()
 
@@ -134,33 +135,48 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                     return@fixedRateTimer
                 }
                 val packet = DatagramPacket(buffer, buffer.size, broadcastAddress, broadcastPort)
-                socket.send(packet)
-                socket.close()
+                broadcastingSocket?.send(packet)
 
             }catch (e:Exception){
-                Log.e("MKServer Broadcast ex","Broadcasting "+getExceptionString(e))
+                Log.e("MKServer Broadcast","Broadcasting "+getExceptionString(e))
             }
 
+            try {
+                val cleanupCutoffTime = Instant.now().minusSeconds(CLEANUP_THRESHOLD_SECONDS)
+                val iterator = activeServers.entries.iterator()
+
+                while (iterator.hasNext()) {
+                    val entry = iterator.next()
+                    val lastSeen = entry.value
+                    if (lastSeen.isBefore(cleanupCutoffTime)) {
+                        iterator.remove()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MKServer Cleanup", "Error during activeServers cleanup: ${getExceptionString(e)}")
+            }
         }
 
     }
 
     private fun stopBroadcasting() {
         broadcastTimer?.cancel()
+        broadcastingSocket?.close()
         broadcastTimer = null
     }
 
     private fun startListeningForBroadcasts() {
-        listeningThread = Thread {
 
+        listeningSocket = DatagramSocket(broadcastPort)
+        listeningThread = Thread {
             val buffer = ByteArray(1024)
 
             try {
-                socket = DatagramSocket(broadcastPort)
+
                 while (isRunning.get()) {
 
                     val packet = DatagramPacket(buffer, buffer.size)
-                    socket!!.receive(packet)
+                    listeningSocket!!.receive(packet)
                     val message = String(packet.data, 0, packet.length)
                     val senderIP = packet.address.hostAddress
                     var deviceIP = networkHandler.getIpAddress(context)
@@ -177,7 +193,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             catch (e: Exception) {
                 Log.e("MKServer Broadcast ex","listening "+getExceptionString(e))
             }finally {
-                socket?.close()
+                listeningSocket?.close()
             }
 
         }.apply { start() }
@@ -185,7 +201,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun stopListeningForBroadcasts() {
 
-        socket?.close()
+        listeningSocket?.close()
         listeningThread?.interrupt()
         listeningThread = null
     }

@@ -1,6 +1,7 @@
 package com.example.serverapp.ui.usermanagement
 
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,9 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.serverapp.ui.CommonButton
 import com.example.serverapp.ui.StyledError
 import kotlinx.coroutines.launch
 import com.example.serverapp.viewmodel.UserManagementViewModel
@@ -32,9 +35,8 @@ fun UserManagementScreen(viewModel: UserManagementViewModel) {
         Row(modifier = Modifier.padding(top = 50.dp),){
             Text("Manage Users", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.weight(1f))
-            Button(onClick = { showCreateUserForm = !showCreateUserForm }) {
-                Text(if (showCreateUserForm) "Hide Create User" else "Create New User")
-            }
+            val buttonText=if (showCreateUserForm) "Hide Create User" else "Create New User"
+            CommonButton(buttonText,{ showCreateUserForm = !showCreateUserForm })
         }
 
         if(showCreateUserForm){
@@ -111,9 +113,7 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
                         viewModel.resetError()
                         onDismissRequest()
                     }) { Text("Cancel") }
-                    Button(onClick = { coroutineScope.launch { viewModel.createUser(newUsername, newPassword) } }) {
-                        Text("Create")
-                    }
+                    CommonButton("Create",{ coroutineScope.launch { viewModel.createUser(newUsername, newPassword) } })
                 }
             }
         }
@@ -147,22 +147,20 @@ fun UserItem(
                 Text("Disabled: ${user.disabled}", style = MaterialTheme.typography.bodyMedium)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = {
+
+                val toggleUserStatus = fun(){
                     if(user.disabled){
                         coroutineScope.launch { viewModel.enableUser(user.id)}
                     }else{
                         coroutineScope.launch { viewModel.disableUser(user.id)}
                     }
-                }) {
-                    Text(if (user.disabled) "Enable Account" else "Disable Account")
-                }
-                Button(onClick = { showDeleteAccountDialog=true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                    Text("Delete Account")
-                }
-                Button(onClick = { showPasswordChangeDialog = true }) {
-                    Text("Change Password")
                 }
 
+                val userStatusText=if (user.disabled) "Enable Account" else "Disable Account"
+
+                CommonButton(userStatusText,toggleUserStatus)
+                CommonButton("Delete Account",{ showDeleteAccountDialog=true })
+                CommonButton("Change Password",{ showPasswordChangeDialog = true })
             }
         }
     }
@@ -208,15 +206,11 @@ fun EditPasswordDialog(user: User, viewModel: UserManagementViewModel, onDismiss
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
+            CommonButton("Update", {
                     if (passwordInput.isNotBlank()) {
                         coroutineScope.launch { viewModel.changePassword(user.id, passwordInput) }
                     }
-                }
-            ) {
-                Text("Update")
-            }
+            })
         },
         dismissButton = {
             TextButton(onClick = { onDismissRequest() }) {
@@ -235,14 +229,11 @@ fun DeleteAccountDialog(user:User, viewModel: UserManagementViewModel, onDismiss
         onDismissRequest = { onDismissRequest() },
         title = { Text("Delete the Account of ${user.userName}?") },
         confirmButton = {
-            Button(
-                onClick = {
-                        coroutineScope.launch { viewModel.deleteUser(user.id) }
-                        onDismissRequest()
-                }
-            ) {
-                Text("Delete")
-            }
+            CommonButton("Delete",
+                {
+                    coroutineScope.launch { viewModel.deleteUser(user.id) }
+                    onDismissRequest()
+                })
         },
         dismissButton = {
             TextButton(onClick = { onDismissRequest() }) {

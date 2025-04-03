@@ -234,6 +234,26 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val responseContent = mapOf("activeServers" to list)
                 return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
             }
+            "/verify"->{
+                try {
+                    val authHeader = session.headers["authorization"]
+                    val token = authHeader?.removePrefix("Bearer ")?.trim() ?: return newFixedLengthResponse(Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to "Missing authorization header")))
+
+                    val userId=sessionManager.validateSession(token)
+                    return if(userId==null){
+                        newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Invalid or expired session")))
+                    }else {
+                        val user=userService.getUserById(userId);
+                        if(user==null){
+                            newFixedLengthResponse(Status.UNAUTHORIZED, MIME_JSON, gson.toJson(mapOf("message" to "Invalid or expired session")))
+                        }else{
+                            newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(mapOf("username" to user.userName,"token" to token)))
+                        }
+                    }
+                } catch (e: Exception) {
+                    return newFixedLengthResponse(Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(mapOf("message" to "An error occurred during verify", "error" to getExceptionString(e))))
+                }
+            }
             "/stats"->{
                 try {
 

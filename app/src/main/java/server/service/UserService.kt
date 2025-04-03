@@ -1,6 +1,7 @@
 package server.service
 import java.util.regex.Pattern
 import database.AppDatabase
+import database.entity.User
 import org.mindrot.jbcrypt.BCrypt
 
 data class LoginResult(
@@ -58,6 +59,10 @@ class UserService(private val database: AppDatabase,private val sessionManager: 
 
     private fun containsHtmlTags(input: String): Boolean {
         return Pattern.compile("<[^>]*>?").matcher(input).find()
+    }
+
+    fun getUserById(userId: Long): User? {
+        return database.userDao().getUserById(userId)
     }
 
     fun loginUser(username: String, password: String): LoginResult{

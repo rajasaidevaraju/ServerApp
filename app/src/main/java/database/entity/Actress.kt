@@ -15,6 +15,12 @@ data class ActressIdName(
         val name: String
 )
 
+data class ActressCount(
+        val id: Long,
+        val name: String,
+        val count: Int
+)
+
 fun ActressIdName.toActress(): Actress {
         return Actress(
                 actressId = this.id,

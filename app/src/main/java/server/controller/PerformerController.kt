@@ -30,9 +30,9 @@ class PerformerController(
     private fun handleGetRequest(url: String, session: IHTTPSession): Response {
         when (url) {
             "/performers" -> {
-                val performers = database.actressDao().getAllActresses()
+                val performers = database.actressDao().getAllActressesWithCount()
                 val jsonContent: String = gson.toJson(performers)
-                return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
             }
             else -> return notFound()
         }

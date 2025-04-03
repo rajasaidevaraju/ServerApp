@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import database.entity.ActressCount
 import database.entity.ActressIdName
 
 @Dao
@@ -19,6 +20,9 @@ interface ActressDAO {
 
     @Query("SELECT actressId AS id,name FROM actress")
     fun getAllActresses(): List<ActressIdName>
+
+    @Query("SELECT a.actressId AS id, a.name, COUNT(va.actressId) AS count FROM actress AS a LEFT JOIN video_actress_cross_ref AS va ON a.actressId=va.actressId GROUP BY a.actressId;")
+    fun getAllActressesWithCount(): List<ActressCount>
 
     @Query("SELECT * FROM actress WHERE actressId = :actressId")
     fun getActressById(actressId: Long): Actress?

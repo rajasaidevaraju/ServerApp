@@ -14,6 +14,7 @@ import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 
 class FileHandlerHelper(private val context: Context){
 
+    private val invalidChars = Regex("[<>:\"/\\\\|?*\\x00-\\x1F]")
 
     fun isSdCardAvailable():Boolean{
         var sdCardAvailable = false
@@ -39,6 +40,22 @@ class FileHandlerHelper(private val context: Context){
             segments.last()
         }
 
+    }
+
+
+    fun isValidFilename(name: String?): Boolean {
+        if (name.isNullOrBlank()) {
+            return false
+        }
+
+        if (name.length > 240) {
+            return false
+        }
+
+        if (invalidChars.containsMatchIn(name)) {
+            return false
+        }
+        return true
     }
 
     fun getUriForFileName(uri: Uri, fileName: String): DocumentFile? {
@@ -73,7 +90,6 @@ class FileHandlerHelper(private val context: Context){
         }
     }
 
-
     fun getAllFilesMetaInDirectory(uri: Uri): List<FileMeta> {
         val documentFile = DocumentFile.fromTreeUri(context, uri)
         val fileMetas = mutableListOf<FileMeta>()
@@ -97,7 +113,7 @@ class FileHandlerHelper(private val context: Context){
     fun serveStaticFile(filePath: String): NanoHTTPD.Response? {
         return try {
             val assetManager = context.assets
-            val inputStream = assetManager.open("web/$filePath") // Adjust the path to match your assets folder structure
+            val inputStream = assetManager.open("web/$filePath")
             val fileBytes = inputStream.readBytes()
             val mimeType = getMimeType(filePath)
             newFixedLengthResponse(NanoHTTPD.Response.Status.OK, mimeType, fileBytes.inputStream(), fileBytes.size.toLong())

@@ -2,6 +2,7 @@ package server.controller
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.AppDatabase
 import database.entity.FileMeta
@@ -56,6 +57,7 @@ class FileController(private val context: Context,
     private fun handlePutRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         when {
             url=="/repair" -> return repairPath(getInternalURI(),getSdCardURI())
+            isRenameUrl(url)-> return renameFile(url,session)
             else -> return notFound()
         }
     }
@@ -199,6 +201,41 @@ class FileController(private val context: Context,
         }
     }
 
+    fun renameFile(url:String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val fileId=extractFileIdFromUrl(url)
+        if(fileId==null){
+            return badRequest("Invalid URL")
+        }
+        val postBody=parseRequestBody(session)
+        val newName=postBody["newName"]
+        if(newName.isNullOrBlank()){
+            return badRequest("Missing required parameter: newName")
+        }
+        try {
+            val result=fileService.renameFile(fileId,newName,context)
+            if(result.success){
+                return okRequest(result.message)
+            }else{
+                return badRequest(result.message)
+            }
+        }catch (exception: Exception){
+            return internalServerError(exception,"Could not rename file")
+        }
+    }
+
+    fun isRenameUrl(url: String): Boolean {
+        val regex = """/file/\d+/rename""".toRegex()
+        return regex.matches(url)
+    }
+
+    fun extractFileIdFromUrl(url: String): Long? {
+        val regex = """/file/(\d+)/rename""".toRegex()
+        val matchResult = regex.find(url)
+
+        return matchResult?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+
     private fun extractBoundary(headers:Map<String, String>):String?{
         val contentType=headers.get("content-type")
         // example of contentType multipart/form-data; boundary=----WebKitFormBoundaryuRqy8BtHu1nT2dfA
@@ -256,7 +293,7 @@ class FileController(private val context: Context,
             if (fileMeta == null) {
                 return badRequest("file ID $fileId not present")
             }
-            NanoHTTPD.newFixedLengthResponse(
+            newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
                 MIME_JSON,
                 gson.toJson(mapOf("fileName" to fileMeta.fileName))
@@ -270,7 +307,6 @@ class FileController(private val context: Context,
 
     private fun getFileDetails(url: String): NanoHTTPD.Response{
         try {
-
             val uri = url.split("/")
             val fileId =uri[uri.size-1].toLongOrNull()
             val result=fileService.getFileDetails(fileId)

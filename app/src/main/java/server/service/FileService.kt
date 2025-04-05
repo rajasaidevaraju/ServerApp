@@ -28,6 +28,17 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     private val mimeType = "video/mp4"
     private val fileDao=database.fileDao()
 
+    fun parsePostData(postData: String?, paramName: String): String? {
+        if (postData == null) {
+            return null
+        }
+        val jsonBody = JSONObject(postData)
+        if (!jsonBody.has(paramName)) {
+            return null
+        }
+        return jsonBody.getString(paramName)
+    }
+
     fun getFreeInternalMemorySize(): Long {
         val path = Environment.getDataDirectory()
         val stat = StatFs(path.path)
@@ -53,19 +64,13 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
     fun addPerformerToFile(postData: String?,fileId:Long?):ServiceResult{
 
-        if (postData == null) {
-            return ServiceResult(success = false, message = "Missing PostBody")
-        }
+
         if(fileId==null){
             return ServiceResult(success = false, message = "Missing ID")
         }
-        val jsonBody = JSONObject(postData)
-        if (!jsonBody.has("itemId")) {
-            return ServiceResult(success = false, message = "'itemId' is missing")
-        }
-        val performerId=jsonBody.getString("itemId").toLongOrNull()
+        val performerId=parsePostData(postData,"itemId")?.toLongOrNull()
         if(performerId==null){
-            return ServiceResult(success = false, message = "itemId is not valid")
+            return ServiceResult(success = false, message = "itemId is missing or not valid")
         }
 
         val videoActressCrossRef= VideoActressCrossRef(fileId,performerId)
@@ -140,6 +145,33 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         val jsonContent: String = gson.toJson(fileDetails)
         return ServiceResult(success = true, message = jsonContent)
 
+    }
+
+    fun renameFile(fileId:Long ,newName: String, context: Context):ServiceResult{
+        if (!fileHandlerHelper.isValidFilename(newName)) {
+            return ServiceResult(false,"Invalid filename provided")
+        }
+        val fileMeta = fileDao.getFileById(fileId)
+        if(fileMeta==null){
+            return ServiceResult(false,"File with id $fileId not found")
+        }
+        val oldName=fileMeta.fileName
+        val dotIndex=oldName.lastIndexOf('.')
+        val extension=if(dotIndex!=-1) oldName.substring(dotIndex) else ""
+        val newNameWithExtension=newName+extension
+        val file = fileMeta.let { DocumentFile.fromTreeUri(context, it.fileUri) }
+        if (file == null || !file.isFile) {
+            return ServiceResult(false,"File not found in the file system")
+        }
+        file.renameTo(newNameWithExtension)
+        val success= newName != file.name
+        if(!success) {
+            return ServiceResult(false,"Could not rename file")
+        }
+        val updatedFileMeta = fileMeta.copy(fileName = file.name.toString(), fileUri =  file.uri)
+        fileDao.updateFile(updatedFileMeta)
+
+        return ServiceResult(true, "File renamed successfully")
     }
     fun streamFile(fileId: Long, context: Context, headers: Map<String, String>): NanoHTTPD.Response {
 

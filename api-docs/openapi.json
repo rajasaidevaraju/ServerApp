@@ -2,522 +2,63 @@
   "openapi": "3.0.3",
   "info": {
     "title": "MKHttpServer API",
-    "description": "API for interacting with the MKHttpServer, a NanoHTTPD-based server running on Android devices for file management, server discovery, and system statistics.",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "description": "API definition for the Android MKHttpServer application, allowing management and streaming of media files, performers, and server status."
   },
   "servers": [
     {
-      "url": "http://{host}:1280/server",
-      "description": "Local MKHttpServer instance",
+      "url": "http://{serverIp}:{port}/server",
+      "description": "Development server",
       "variables": {
-        "host": {
-          "default": "localhost",
-          "description": "IP address or hostname of the server (discovered via broadcast)"
+        "serverIp": {
+          "default": "192.168.1.100",
+          "description": "IP address of the Android device running the server."
+        },
+        "port": {
+          "default": "1280",
+          "description": "Port the server is listening on."
         }
       }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Server Info",
+      "description": "Endpoints for server status, statistics, and discovery."
+    },
+    {
+      "name": "Authentication",
+      "description": "Endpoints for user login, logout, and session verification."
+    },
+    {
+      "name": "Files",
+      "description": "Endpoints for managing and accessing media files."
+    },
+    {
+      "name": "Performers",
+      "description": "Endpoints for managing performers."
     }
   ],
   "paths": {
     "/status": {
       "get": {
+        "tags": ["Server Info"],
         "summary": "Check server status",
-        "description": "Returns whether the server is alive.",
+        "description": "Returns a simple confirmation that the server is running.",
+        "operationId": "getServerStatus",
         "responses": {
           "200": {
-            "description": "Server is alive",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatusResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/name": {
-      "get": {
-        "summary": "Get file name by ID",
-        "description": "Retrieves the name of a file given its ID.",
-        "parameters": [
-          {
-            "name": "fileId",
-            "in": "query",
-            "required": true,
-            "description": "The ID of the file",
-            "schema": {
-              "type": "string",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File name retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileNameResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid or missing fileId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/files": {
-      "get": {
-        "summary": "List paginated file metadata",
-        "description": "Retrieves a paginated list of file metadata.",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number (defaults to 1)",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated file metadata",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaginatedFilesResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No files found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/file": {
-      "get": {
-        "summary": "Stream a file",
-        "description": "Streams a file by its ID.",
-        "parameters": [
-          {
-            "name": "fileId",
-            "in": "query",
-            "required": true,
-            "description": "The ID of the file to stream",
-            "schema": {
-              "type": "string",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File stream",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing or invalid fileId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "File not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Upload a file",
-        "description": "Uploads a file to the server with multipart/form-data.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "The file to upload"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "File uploaded successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request (e.g., no boundary in headers)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "507": {
-            "description": "Insufficient storage",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/thumbnail": {
-      "get": {
-        "summary": "Get file thumbnail",
-        "description": "Retrieves the thumbnail data for a file by ID.",
-        "parameters": [
-          {
-            "name": "fileId",
-            "in": "query",
-            "required": true,
-            "description": "The ID of the file",
-            "schema": {
-              "type": "string",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Thumbnail data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ThumbnailResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing or invalid fileId",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Upload thumbnail",
-        "description": "Uploads or updates thumbnail data for a file.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-www-form-urlencoded": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "postData": {
-                    "type": "string",
-                    "description": "Thumbnail data (e.g., base64-encoded image)"
-                  }
-                },
-                "required": ["postData"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Thumbnail uploaded successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ThumbnailPostResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/performers": {
-      "get": {
-        "summary": "Get all performers",
-        "operationId": "getPerformers",
-        "tags": ["Performers"],
-        "responses": {
-          "200": {
-            "description": "List of performers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "integer"
-                      },
-                      "name": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
+            "description": "Server is alive.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
+                    "alive": {
+                      "type": "boolean",
+                      "example": true
                     }
                   }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Add performers",
-        "operationId": "addPerformers",
-        "tags": [
-          "Performers"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "List of performer names to add"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successfully added performers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request, missing or invalid data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized, missing or invalid authorization token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [{"BearerAuth": []}]
-      }
-    },
-    "/login": {
-      "post": {
-        "summary": "User login",
-        "description": "Authenticates a user and returns a JWT token for subsequent authenticated requests.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Login successful, JWT token returned",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (e.g., missing or malformed credentials)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed (e.g., incorrect username or password)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -527,15 +68,17 @@
     },
     "/servers": {
       "get": {
-        "summary": "List active servers",
-        "description": "Returns a list of IP addresses of active servers discovered via UDP broadcast.",
+        "tags": ["Server Info"],
+        "summary": "Discover other active servers",
+        "description": "Lists IP addresses of other MKHttpServer instances detected on the local network via UDP broadcast.",
+        "operationId": "getActiveServers",
         "responses": {
           "200": {
-            "description": "List of active servers",
+            "description": "List of active server IPs.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ActiveServersResponse"
+                  "$ref": "#/components/schemas/ServersResponse"
                 }
               }
             }
@@ -545,11 +88,13 @@
     },
     "/stats": {
       "get": {
-        "summary": "Get system statistics",
-        "description": "Returns storage, file count, and battery statistics.",
+        "tags": ["Server Info"],
+        "summary": "Get device statistics",
+        "description": "Retrieves statistics about the device running the server, including storage, file count, and battery status.",
+        "operationId": "getServerStats",
         "responses": {
           "200": {
-            "description": "System statistics",
+            "description": "Device statistics.",
             "content": {
               "application/json": {
                 "schema": {
@@ -559,50 +104,908 @@
             }
           },
           "500": {
-            "description": "Internal server error",
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log in a user",
+        "description": "Authenticates a user with username and password, returning a session token upon success.",
+        "operationId": "loginUser",
+        "requestBody": {
+          "description": "User credentials.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing the username and password.",
+                    "example": "{\"username\":\"testuser\",\"password\":\"password123\"}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful, returns session token.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/LoginResponse"
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log out a user",
+        "description": "Invalidates the session associated with the provided Bearer token.",
+        "operationId": "logoutUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/verify": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Verify session token",
+        "description": "Checks if the provided Bearer token corresponds to a valid, active session.",
+        "operationId": "verifySession",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session is valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/files": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Get a paginated list of files",
+        "description": "Retrieves a list of files, optionally filtered by performer, with pagination support.",
+        "operationId": "getFiles",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (starts at 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "performerId",
+            "in": "query",
+            "description": "Optional performer ID to filter files.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of simplified file metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedFilesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/file": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Stream a file",
+        "description": "Streams the content of a specific media file. Supports HTTP Range requests for partial content.",
+        "operationId": "streamFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "description": "ID of the file to stream.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full file content.",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Length": {
+                "schema": { "type": "integer" }
+              },
+              "Accept-Ranges": {
+                "schema": { "type": "string", "example": "bytes"}
+              }
+            }
+          },
+          "206": {
+            "description": "Partial file content.",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Length": {
+                "schema": { "type": "integer" }
+              },
+              "Accept-Ranges": {
+                "schema": { "type": "string", "example": "bytes"}
+              },
+              "Content-Range": {
+                "schema": { "type": "string", "example": "bytes 0-1023/4096" }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Files"],
+        "summary": "Upload a file",
+        "description": "Uploads a media file using multipart/form-data. Requires internal storage folder to be configured in the app.",
+        "operationId": "uploadFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Multipart form data containing the file.",
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The video file to upload."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "507": {
+            "$ref": "#/components/responses/InsufficientStorage"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Files"],
+        "summary": "Delete a file",
+        "description": "Deletes a file from both the filesystem and the database.",
+        "operationId": "deleteFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "description": "ID of the file to delete.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/fileDetails/{fileId}": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Get file details",
+        "description": "Retrieves details for a specific file, including associated performers.",
+        "operationId": "getFileDetails",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "description": "ID of the file.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/file/{fileId}/performer": {
+      "post": {
+        "tags": ["Files", "Performers"],
+        "summary": "Associate a performer with a file",
+        "description": "Creates an association between a file and a performer.",
+        "operationId": "addPerformerToFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "description": "ID of the file.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Performer ID to associate.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing the performer's item ID.",
+                    "example": "{\"itemId\":123}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/file/{fileId}/rename": {
+      "put": {
+        "tags": ["Files"],
+        "summary": "Rename a file",
+        "description": "Renames a file on the filesystem and updates its record in the database. The file extension is preserved.",
+        "operationId": "renameFile",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "description": "ID of the file to rename.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New name for the file (without extension).",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/thumbnail": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Get file thumbnail",
+        "description": "Retrieves the Base64 encoded thumbnail image data for a file, if available.",
+        "operationId": "getThumbnail",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "description": "ID of the file.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thumbnail data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThumbnailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Files"],
+        "summary": "Update file thumbnail",
+        "description": "Adds or updates the Base64 encoded thumbnail image data for a file.",
+        "operationId": "updateThumbnail",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Thumbnail data to update.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing the fileId and imageData.",
+                    "example": "{\"fileId\":1,\"imageData\":\"data:image/jpeg;base64,/9j/4AA...\"}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thumbnail updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "fileId": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/name": {
+      "get": {
+        "tags": ["Files"],
+        "summary": "Get file name",
+        "description": "Retrieves the file name for a given file ID.",
+        "operationId": "getFileName",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "description": "ID of the file.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileNameResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
     },
     "/scan": {
       "post": {
-        "summary": "Scan storage for files",
-        "description": "Scans internal and external storage for files and updates the database.",
+        "tags": ["Files"],
+        "summary": "Scan folders for new files",
+        "description": "Scans the configured internal and SD card folders (if available) and adds metadata for any new files found to the database. Requires folders to be configured in the app.",
+        "operationId": "scanFolders",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Scan results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScanResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
     },
     "/cleanup": {
       "delete": {
-        "summary": "Remove absent file entries",
-        "description": "Cleans up database entries for files that no longer exist.",
+        "tags": ["Files"],
+        "summary": "Clean up database entries",
+        "description": "Removes entries from the file database for files that no longer exist on the filesystem.",
+        "operationId": "cleanupDatabase",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Cleanup successful",
+            "description": "Cleanup successful.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CleanupResponse"
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "rows_deleted": {
+                      "type": "integer"
+                    }
+                  }
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/repair": {
+      "put": {
+        "tags": ["Files"],
+        "summary": "Repair file paths",
+        "description": "Scans configured folders and updates the file URIs in the database for files whose URIs may have changed but filenames remain the same. Requires folders to be configured in the app.",
+        "operationId": "repairPaths",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/performers": {
+      "get": {
+        "tags": ["Performers"],
+        "summary": "Get all performers with count",
+        "description": "Retrieves a list of all performers along with the count of files associated with each.",
+        "operationId": "getAllPerformers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of performers with counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActressCount"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Performers"],
+        "summary": "Add new performers",
+        "description": "Adds one or more new performers to the database.",
+        "operationId": "addPerformers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "List of names for the new performers.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing an array of names.",
+                    "example": "{\"names\":[\"Performer One\",\"Performer Two\"]}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/performer/{performerId}": {
+      "put": {
+        "tags": ["Performers"],
+        "summary": "Update a performer's name",
+        "description": "Updates the name of an existing performer.",
+        "operationId": "updatePerformer",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "performerId",
+            "in": "path",
+            "description": "ID of the performer to update.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New name for the performer.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing the updated name.",
+                    "example": "{\"updatedName\":\"New Performer Name\"}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/deletePerformers": {
+      "post": {
+        "tags": ["Performers"],
+        "summary": "Delete performers",
+        "description": "Deletes one or more performers by their IDs.",
+        "operationId": "deletePerformers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "List of performer IDs to delete.",
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "postData": {
+                    "type": "string",
+                    "description": "A JSON string containing an array of IDs.",
+                    "example": "{\"ids\":[1, 2, 3]}"
+                  }
+                },
+                "required": ["postData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SuccessMessage"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -610,63 +1013,76 @@
   },
   "components": {
     "schemas": {
-      "LoginRequest": {
+      "SimplifiedFileMeta": {
         "type": "object",
         "properties": {
-          "username": {
-            "type": "string",
-            "description": "The user's username",
-            "example": "johndoe"
-          },
-          "password": {
-            "type": "string",
-            "description": "The user's password",
-            "example": "secret123",
-            "format": "password"
-          }
-        },
-        "required": ["username", "password"]
-      },
-      "LoginResponse": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "description": "JWT token for authenticated requests",
-            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-          },
-          "expiresIn": {
+          "fileId": {
             "type": "integer",
-            "description": "Token expiration time in seconds",
-            "example": 3600
+            "format": "int64",
+            "description": "Unique identifier for the file."
           },
-          "message": {
-            "type": "string",
-            "description": "Success message",
-            "example": "Login successful"
-          }
-        },
-        "required": ["token", "message"]
-      },
-      "StatusResponse": {
-        "type": "object",
-        "properties": {
-          "alive": {
-            "type": "boolean",
-            "description": "Indicates if the server is running"
-          }
-        },
-        "required": ["alive"]
-      },
-      "FileNameResponse": {
-        "type": "object",
-        "properties": {
           "fileName": {
             "type": "string",
-            "description": "Name of the file"
+            "description": "Name of the file."
           }
         },
-        "required": ["fileName"]
+        "required": ["fileId", "fileName"]
+      },
+      "ActressCount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique identifier for the actress/performer."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the actress/performer."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of files associated with this performer."
+          }
+        },
+        "required": ["id", "name", "count"]
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique identifier for the item (e.g., performer)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the item."
+          }
+        },
+        "required": ["id", "name"]
+      },
+      "FileDetails": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique identifier for the file."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the file."
+          },
+          "performers": {
+            "type": "array",
+            "description": "List of performers associated with the file.",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          }
+        },
+        "required": ["id", "name", "performers"]
       },
       "PaginatedFilesResponse": {
         "type": "object",
@@ -674,7 +1090,7 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/FileMetaSimplified"
+              "$ref": "#/components/schemas/SimplifiedFileMeta"
             }
           },
           "meta": {
@@ -682,15 +1098,15 @@
             "properties": {
               "page": {
                 "type": "integer",
-                "description": "Current page number"
+                "description": "Current page number."
               },
               "limit": {
                 "type": "integer",
-                "description": "Number of items per page"
+                "description": "Number of items per page."
               },
               "total": {
                 "type": "integer",
-                "description": "Total number of files"
+                "description": "Total number of items matching the query."
               }
             },
             "required": ["page", "limit", "total"]
@@ -698,56 +1114,15 @@
         },
         "required": ["data", "meta"]
       },
-      "FileMetaSimplified": {
-        "type": "object",
-        "properties": {
-          "fileId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "fileName": {
-            "type": "string"
-          }
-        },
-        "required": ["fileId", "fileName"]
-      },
-      "ThumbnailResponse": {
-        "type": "object",
-        "properties": {
-          "imageData": {
-            "type": "string",
-            "description": "Thumbnail data (e.g., base64-encoded image)"
-          },
-          "exists": {
-            "type": "boolean",
-            "description": "Whether the thumbnail exists"
-          }
-        },
-        "required": ["imageData", "exists"]
-      },
-      "ThumbnailPostResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "Success message"
-          },
-          "fileId": {
-            "type": "integer",
-            "format": "int64",
-            "description": "ID of the file associated with the thumbnail"
-          }
-        },
-        "required": ["message", "fileId"]
-      },
-      "ActiveServersResponse": {
+      "ServersResponse": {
         "type": "object",
         "properties": {
           "activeServers": {
             "type": "array",
+            "description": "List of IP addresses of active servers found on the network.",
             "items": {
               "type": "string",
-              "description": "IP address of an active server"
+              "format": "ipv4"
             }
           }
         },
@@ -755,136 +1130,162 @@
       },
       "StatsResponse": {
         "type": "object",
+        "description": "Device statistics.",
         "properties": {
-          "files": {
-            "type": "integer",
-            "description": "Total number of files in the database"
+          "files": { "type": "integer", "description": "Total number of files in the database." },
+          "freeInternal": { "type": "integer", "format": "int64", "description": "Free internal storage space in bytes." },
+          "totalInternal": { "type": "integer", "format": "int64", "description": "Total internal storage space in bytes." },
+          "freeExternal": { "type": "integer", "format": "int64", "description": "Free external storage space (SD card) in bytes, 0 if unavailable." },
+          "totalExternal": { "type": "integer", "format": "int64", "description": "Total external storage space (SD card) in bytes, 0 if unavailable." },
+          "hasExternalStorage": { "type": "boolean", "description": "Indicates if an SD card is available and mounted." },
+          "percentage": { "type": "integer", "description": "Current battery percentage (0-100), or -1 if unavailable." },
+          "charging": { "type": "boolean", "description": "Indicates if the device is currently charging." }
+        },
+        "required": ["files", "freeInternal", "totalInternal", "freeExternal", "totalExternal", "hasExternalStorage", "percentage", "charging"]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Session token for authenticated requests."
+          }
+        },
+        "required": ["token"]
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Username associated with the token."
           },
-          "freeInternal": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Free internal storage in bytes"
+          "token": {
+            "type": "string",
+            "description": "The validated session token."
+          }
+        },
+        "required": ["username", "token"]
+      },
+      "ThumbnailResponse": {
+        "type": "object",
+        "properties": {
+          "imageData": {
+            "type": "string",
+            "format": "byte",
+            "description": "Base64 encoded thumbnail image data, or empty string if none exists."
           },
-          "totalInternal": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total internal storage in bytes"
-          },
-          "freeExternal": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Free external storage in bytes"
-          },
-          "totalExternal": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Total external storage in bytes"
-          },
-          "hasExternalStorage": {
+          "exists": {
             "type": "boolean",
-            "description": "Whether external storage is available"
-          },
-          "percentage": {
-            "type": "integer",
-            "description": "Battery percentage (-1 if unavailable)"
-          },
-          "charging": {
-            "type": "boolean",
-            "description": "Whether the device is charging"
+            "description": "Indicates if a thumbnail exists for the file."
           }
         },
-        "required": [
-          "files",
-          "freeInternal",
-          "totalInternal",
-          "freeExternal",
-          "totalExternal",
-          "hasExternalStorage",
-          "percentage",
-          "charging"
-        ]
+        "required": ["imageData", "exists"]
       },
-      "ScanResponse": {
+      "FileNameResponse": {
         "type": "object",
         "properties": {
-          "insertions_attempted": {
-            "type": "integer",
-            "description": "Number of files attempted to insert"
-          },
-          "not_inserted": {
-            "type": "integer",
-            "description": "Number of files not inserted"
-          },
-          "inserted": {
-            "type": "integer",
-            "description": "Number of files successfully inserted"
+          "fileName": {
+            "type": "string",
+            "description": "The name of the file."
           }
         },
-        "required": ["insertions_attempted", "not_inserted", "inserted"]
+        "required": ["fileName"]
       },
-      "CleanupResponse": {
+      "RenameFileRequest": {
+        "type": "object",
+        "properties": {
+          "newName": {
+            "type": "string",
+            "description": "The desired new name for the file, without the extension."
+          }
+        },
+        "required": ["newName"]
+      },
+      "Error": {
         "type": "object",
         "properties": {
           "message": {
             "type": "string",
-            "description": "Cleanup success message"
-          },
-          "rows_deleted": {
-            "type": "integer",
-            "description": "Number of database rows removed"
-          }
-        },
-        "required": ["message", "rows_deleted"]
-      },
-      "SuccessResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "Success message"
-          }
-        },
-        "required": ["message"]
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "Error message"
-          },
-          "error": {
-            "type": "string",
-            "description": "Detailed error information (e.g., stack trace)",
-            "nullable": true
+            "description": "A human-readable error message."
           },
           "stackTrace": {
             "type": "string",
-            "description": "Stack trace of the exception (if applicable)",
-            "nullable": true
+            "description": "Optional stack trace for debugging (may not always be present)."
           }
         },
         "required": ["message"]
       },
-      "Performer": {
+      "SuccessMessage": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
+          "message": {
+            "type": "string",
+            "description": "A confirmation message indicating success.",
+            "example": "Operation successful"
+          }
+        },
+        "required": ["message"]
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "The specified resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
           }
         }
       },
-      "EntityResult": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "message": {
-            "type": "string"
+      "BadRequest": {
+        "description": "The request was malformed or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Authentication failed or is required.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "An unexpected error occurred on the server.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InsufficientStorage": {
+        "description": "Not enough storage space to complete the operation (e.g., file upload).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "SuccessMessage": {
+        "description": "Operation completed successfully.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SuccessMessage"
+            }
           }
         }
       }
@@ -893,7 +1294,8 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "token obtained from the /login endpoint"
+        "bearerFormat": "UUID",
+        "description": "Bearer token obtained via the /login endpoint."
       }
     }
   }

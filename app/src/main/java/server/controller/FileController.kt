@@ -46,7 +46,7 @@ class FileController(private val context: Context,
 
     private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         when {
-            url=="/file" -> return uploadFile(session, getInternalURI())
+            url=="/file" -> return uploadFile(session)
             url.startsWith("/file")&& url.endsWith("/performer") -> return addPerformerToFile(url,session)
             url=="/thumbnail" -> return updateThumbnail(session)
             url== "/scan" -> return scanFolders(getSdCardURI(), getInternalURI())
@@ -127,26 +127,47 @@ class FileController(private val context: Context,
         }
     }
 
-    private fun uploadFile(session: NanoHTTPD.IHTTPSession, internalURI: Uri?): NanoHTTPD.Response {
+    private fun uploadFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+
+        val internalURI = getInternalURI()
+        val sdCardURI = getSdCardURI()
 
         if(internalURI==null){
-            return internalServerError(null,"Choose a root folder")
+            return internalServerError(null,"Internal storage root folder not configured.")
         }
 
-        val destinationDir = DocumentFile.fromTreeUri(context, internalURI)
-        if (destinationDir == null || destinationDir.isFile) {
-            return internalServerError(null,"Could not store the file")
-        }
+        var destinationDir: DocumentFile? = null
         var destinationFile: DocumentFile? = null
+        var uploadTarget = "internal"
         try {
+            val params = session.parameters
             val contentLength = session.headers["content-length"]!!.toLong()
             val threeGBInBytes = 3L * 1024 * 1024 * 1024
-            if (fileService.getFreeInternalMemorySize() - contentLength < threeGBInBytes) {
-                return newFixedLengthResponse(
-                    ExtendedStatus.INSUFFICIENT_STORAGE,
-                    MIME_JSON,
-                    gson.toJson(mapOf("message" to "Not enough storage."))
-                )
+
+            val target = params["uploadTarget"]?.firstOrNull()
+            if (target != null) {
+                uploadTarget = target
+            }
+            if (uploadTarget == "external") {
+                if(sdCardURI==null){
+                    return internalServerError(null,"External storage root folder not configured.")
+                }
+                val (_,freeExternal)=fileService.getExternalMemoryData()
+                if (freeExternal  - contentLength < threeGBInBytes) {
+                    return insufficientStorage()
+                }
+                destinationDir = DocumentFile.fromTreeUri(context, sdCardURI)
+            }else if(target=="internal"){
+                val (_,freeInternal)=fileService.getInternalMemoryData()
+                if (freeInternal - contentLength < threeGBInBytes) {
+                    return insufficientStorage()
+                }
+                destinationDir= DocumentFile.fromTreeUri(context, internalURI)
+            }else{
+                return badRequest("Invalid upload target")
+            }
+            if (destinationDir == null || destinationDir.isFile) {
+                return internalServerError(null,"Could not store the file")
             }
 
             val boundary = extractBoundary(session.headers)
@@ -206,7 +227,7 @@ class FileController(private val context: Context,
         if(fileId==null){
             return badRequest("Invalid URL")
         }
-        val postBody=parseRequestBody(session)
+        val postBody=parseSmallRequestBody(session)
         val newName=postBody["newName"]
         if(newName.isNullOrBlank()){
             return badRequest("Missing required parameter: newName")
@@ -270,7 +291,7 @@ class FileController(private val context: Context,
                 exists = false
             }
             val responseContent = mapOf("imageData" to thumbnail, "exists" to exists)
-            NanoHTTPD.newFixedLengthResponse(
+            newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
                 MIME_JSON,
                 gson.toJson(responseContent)

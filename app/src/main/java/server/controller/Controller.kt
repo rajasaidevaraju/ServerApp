@@ -3,6 +3,8 @@ package server.controller
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.Response
+import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.SharedPreferencesHelper
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -18,18 +20,26 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
     protected val MIME_JSON = "application/json"
     protected val gson: Gson = GsonBuilder().create()
 
-    protected fun notFound(message:String= "The requested resource could not be found"): NanoHTTPD.Response {
+    protected fun notFound(message:String= "The requested resource could not be found"): Response {
         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
-    protected fun badRequest(message: String="The request could not be processed due to invalid syntax"): NanoHTTPD.Response {
+    protected fun badRequest(message: String="The request could not be processed due to invalid syntax"): Response {
         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
 
-    protected fun okRequest(message: String="Success"): NanoHTTPD.Response {
+    protected fun okRequest(message: String="Success"): Response {
         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
 
-    protected fun parseRequestBody(session: NanoHTTPD.IHTTPSession):HashMap<String,String>{
+    protected fun insufficientStorage():Response{
+        return newFixedLengthResponse(
+            ExtendedStatus.INSUFFICIENT_STORAGE,
+            MIME_JSON,
+            gson.toJson(mapOf("message" to "Not enough storage."))
+        )
+    }
+
+    protected fun parseSmallRequestBody(session: NanoHTTPD.IHTTPSession):HashMap<String,String>{
         val res=HashMap<String,String>();
         val contentLength=session.headers["content-length"]
         var lengthInBytes:Long=0;

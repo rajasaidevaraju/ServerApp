@@ -5,6 +5,7 @@ import android.content.Context.STORAGE_SERVICE
 import android.net.Uri
 import android.os.Environment
 import android.os.storage.StorageManager
+import android.os.storage.StorageVolume
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.entity.FileMeta
@@ -19,7 +20,7 @@ class FileHandlerHelper(private val context: Context){
     fun isSdCardAvailable():Boolean{
         var sdCardAvailable = false
         val  storageManager = context.getSystemService(STORAGE_SERVICE) as StorageManager;
-        val storageVolumes = storageManager.getStorageVolumes();
+        val storageVolumes = storageManager.storageVolumes;
         for (volume in storageVolumes) {
             val description = volume.getDescription(context)
             if (volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED && description.contains("SD")) {
@@ -30,6 +31,25 @@ class FileHandlerHelper(private val context: Context){
 
         return sdCardAvailable
     }
+
+    fun getInternalVolume(): StorageVolume? {
+        val storageManager = context.getSystemService(STORAGE_SERVICE) as StorageManager;
+        val storageVolume = storageManager.primaryStorageVolume;
+        return storageVolume
+    }
+
+    fun getExternalVolume(): StorageVolume?{
+        val  storageManager = context.getSystemService(STORAGE_SERVICE) as StorageManager;
+        val storageVolumes = storageManager.storageVolumes;
+        for (volume in storageVolumes) {
+            val description = volume.getDescription(context)
+            if (volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED && description.contains("SD")) {
+                return volume
+            }
+        }
+        return null
+    }
+
     fun getFolderNameFromUri(uri: Uri?): String? {
 
         val segments = uri?.pathSegments

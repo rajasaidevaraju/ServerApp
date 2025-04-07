@@ -21,7 +21,6 @@ import server.controller.FileController
 import server.controller.PerformerController
 import server.service.DBService
 import server.service.EntityService
-import server.service.EntityType
 import server.service.FileService
 import server.service.UserService
 import server.service.NetworkService
@@ -39,6 +38,7 @@ import java.util.Locale
 import java.util.Timer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.collections.mapOf
 import kotlin.concurrent.fixedRateTimer
 
 
@@ -259,43 +259,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
                     val hasExternalStorage = fileHandlerHelper.isSdCardAvailable()
                     val files = database.fileDao().getTotalFileCount()
-                    var totalInternal:Long = 0
-                    var freeInternal:Long = 0
-                    var totalExternal: Long = 0
-                    var freeExternal: Long = 0
-
-                    val storageStatsManager = context.getSystemService(Context.STORAGE_STATS_SERVICE) as StorageStatsManager?
-                    if(storageStatsManager!=null){
-                        val  storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager;
-                        val storageVolumes = storageManager.getStorageVolumes();
-                        for ( storageVolume: StorageVolume in storageVolumes) {
-                            val uuid = storageVolume.storageUuid
-                            Log.d("uuid:", uuid.toString())
-                            Log.d("storage stats isRemovable",  storageVolume.isRemovable.toString())
-                            Log.d("storage stats description",storageVolume.getDescription(context))
-                            if(uuid!=null){
-                                Log.d("storage stats TotalBytes", storageStatsManager.getTotalBytes(uuid).toString())
-                                Log.d("storage stats FreeBytes",  storageStatsManager.getFreeBytes(uuid).toString())
-
-                                if(storageVolume.isPrimary){
-                                    totalInternal=storageStatsManager.getTotalBytes(uuid)
-                                    freeInternal=storageStatsManager.getFreeBytes(uuid)
-                                }else{
-                                    totalExternal=storageStatsManager.getTotalBytes(uuid)
-                                    freeExternal=storageStatsManager.getFreeBytes(uuid)
-                                }
-                            }else{
-                               val path=storageVolume.directory
-                                if(path!=null && !storageVolume.isPrimary){
-                                    val statFs=StatFs(path.absolutePath)
-                                    freeExternal=statFs.availableBytes
-                                    totalExternal=statFs.totalBytes
-                                }else{
-                                    Log.d("Fuck Google","Fuck Google")
-                                }
-                            }
-                        }
-                    }
+                    val (totalInternal,freeInternal)=fileService.getInternalMemoryData()
+                    val (totalExternal,freeExternal)=fileService.getExternalMemoryData()
 
                     // battery percentage and charging status
                     val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)

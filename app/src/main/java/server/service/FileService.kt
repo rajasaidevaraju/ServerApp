@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
+import android.os.storage.StorageVolume
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
@@ -17,13 +18,14 @@ import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.FileHandlerHelper
+import helpers.SharedPreferencesHelper
 import org.json.JSONObject
 import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
 
 
-class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper) {
+class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
 
     private val mimeType = "video/mp4"
     private val fileDao=database.fileDao()
@@ -39,14 +41,74 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         return jsonBody.getString(paramName)
     }
 
-    fun getFreeInternalMemorySize(): Long {
-        val path = Environment.getDataDirectory()
+    fun getInternalMemoryData():Pair<Long,Long>{
+        val storageVolume=fileHandlerHelper.getInternalVolume()
+        val total=getTotalMemorySize(storageVolume)
+        val free=getFreeMemorySize(storageVolume)
+        return Pair(total,free)
+    }
+
+    fun getExternalMemoryData():Pair<Long,Long> {
+        val storageVolume = fileHandlerHelper.getExternalVolume()
+        val total = getTotalMemorySize(storageVolume)
+        val free = getFreeMemorySize(storageVolume)
+        return Pair(total,free)
+    }
+
+    fun getFileNamesInStorage():HashSet<String>{
+        val names=HashSet<String>();
+        val internalURI=prefHandler.getInternalURI();
+        if(internalURI!=null){
+            names.addAll(getAllFileNamesInURI(internalURI))
+        }
+        val sdCardURI=prefHandler.getSDCardURI();
+        if(sdCardURI!=null){
+            names.addAll(getAllFileNamesInURI(sdCardURI))
+        }
+        return names
+    }
+
+    private fun getAllFileNamesInURI(uri: Uri):HashSet<String>{
+        val names=HashSet<String>();
+        val documentFile = DocumentFile.fromTreeUri(context, uri)
+        if (documentFile != null && documentFile.isDirectory) {
+            for (file in documentFile.listFiles()) {
+                if (file.isDirectory) {
+                    names.addAll(getAllFileNamesInURI(file.uri))
+                }else{
+                    val fileName=file.name
+                    if(fileName!=null){
+                        names.add(fileName)
+                    }
+                }
+            }
+        }
+        return names;
+    }
+
+
+    private fun getFreeMemorySize(storageVolume: StorageVolume?):Long{
+        if(storageVolume==null){
+            return 0
+        }
+        val path=storageVolume.directory
+        if(path==null){
+            return 0
+        }
         val stat = StatFs(path.path)
-        val blockSize = stat.blockSizeLong
-        val availableBlocks = stat.availableBlocksLong
-        val freeSpace = availableBlocks * blockSize
-        //val freeSpaceInMB = freeSpace / (1024 * 1024)
-        return freeSpace
+        return stat.availableBytes
+    }
+
+    private fun getTotalMemorySize(storageVolume: StorageVolume?):Long{
+        if(storageVolume==null){
+            return 0
+        }
+        val path=storageVolume.directory
+        if(path==null){
+            return 0
+        }
+        val stat = StatFs(path.path)
+        return stat.totalBytes
     }
 
     fun scanFolder(selectedDirectoryUri: Uri): List<Long> {

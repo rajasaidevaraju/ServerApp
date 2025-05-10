@@ -420,7 +420,8 @@ class FileController(private val context: Context,
     }
 
     private fun cleanupDatabase(): NanoHTTPD.Response {
-        val removedEntries = dbService.removeAbsentEntries(context, database.fileDao())
+        val filesInStorage=fileService.getFileNamesInStorage();
+        val removedEntries = dbService.removeAbsentEntries(filesInStorage)
         val responseContent = mapOf(
             "message" to "$removedEntries rows removed",
             "rows_deleted" to removedEntries

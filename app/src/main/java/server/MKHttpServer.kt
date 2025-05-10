@@ -75,7 +75,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val sessionManager = SessionManager()
     private val userService by lazy {UserService(database,sessionManager)}
     private val entityService by lazy {EntityService(database)}
-    private val fileService by lazy { FileService(database,fileHandlerHelper) }
+    private val fileService by lazy { FileService(database,fileHandlerHelper,prefHandler,context) }
     private val fileController by lazy { FileController(context,database,fileService,networkService,dbService,prefHandler) }
     private val performerController by lazy { PerformerController(database, entityService,prefHandler) }
     private val MIME_JSON="application/json"
@@ -87,7 +87,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val CLEANUP_THRESHOLD_SECONDS = 60L
     private var broadcastTimer: Timer? = null
     private var listeningThread: Thread? = null
-    private val dbService by lazy { DBService() }
+    private val dbService by lazy { DBService(database) }
 
 
     override fun start() {

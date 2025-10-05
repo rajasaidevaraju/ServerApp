@@ -3,7 +3,9 @@ package com.example.serverapp.viewmodel
 
 import android.app.Application
 import android.net.Uri
+import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
@@ -22,6 +24,8 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     val frontEndUrl=MutableLiveData<String?>()
     val backEndUrl=MutableLiveData<String?>()
     val isServerRunning= MutableLiveData<Boolean>(false)
+    private val _hasPermission = MutableLiveData<Boolean>(Environment.isExternalStorageManager())
+    val hasPermission: LiveData<Boolean> get() = _hasPermission
     init {
         loadPrefs()
         viewModelScope.launch {
@@ -78,5 +82,9 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     fun updateServerRunning(){
         isServerRunning.value=prefHandler.getBackEndUrl()!=null
+    }
+
+    fun checkPermission() {
+        _hasPermission.value = Environment.isExternalStorageManager()
     }
 }

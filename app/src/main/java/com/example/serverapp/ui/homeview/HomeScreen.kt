@@ -197,6 +197,37 @@ fun BackendServer(mainActivityViewModel: MainActivityViewModel, startServer: () 
     )
 }
 
+@Composable
+fun RequestPermission(onRequestPermission: () -> Unit){
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .padding(top = 10.dp, bottom = 10.dp)
+
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+
+        ) {
+            Text(
+                text = "Please Grant Permission to access files",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth()
+            )
+            TextButton(
+                onClick = {onRequestPermission()},
+                modifier = Modifier.padding(end = 10.dp)
+            ) { Text("Launch Settings") }
+
+        }
+    }
+}
+
 
 @Composable
 fun ServerImage() {

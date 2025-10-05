@@ -19,12 +19,16 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import com.example.serverapp.ui.homeview.BackendServer
 import com.example.serverapp.ui.homeview.FrontEndServer
@@ -32,6 +36,8 @@ import com.example.serverapp.ui.homeview.Info
 import com.example.serverapp.ui.homeview.Select
 import com.example.serverapp.viewmodel.MainActivityViewModel
 import helpers.FileHandlerHelper
+import androidx.core.net.toUri
+import com.example.serverapp.ui.homeview.RequestPermission
 
 
 class MainActivity : ComponentActivity() {
@@ -41,7 +47,6 @@ class MainActivity : ComponentActivity() {
     private val SERVER_START_ACTION_NAME="SERVER_START"
     private val SERVER_STOP_ACTION_NAME="SERVER_STOP"
     private val mainActivityViewModel: MainActivityViewModel by viewModels()
-
 
     private val requestPermissionLauncherSDCard = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
@@ -68,7 +73,6 @@ class MainActivity : ComponentActivity() {
 
         } else {
             registerReceiver(receiver, serverIntentFilter)
-
         }
 
         setContent {
@@ -85,11 +89,15 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     )  {
-
-                            Info(mainActivityViewModel)
-                            FrontEndServer(mainActivityViewModel)
-                            BackendServer(mainActivityViewModel,::startServer,::stopServer)
-                            Select(mainActivityViewModel,requestPermissionLauncherSDCard,requestPermissionLauncherInternal, fileHandlerHelper)
+                        val hasPermission by mainActivityViewModel.hasPermission.observeAsState(Environment.isExternalStorageManager())
+                        if (!hasPermission) {
+                                RequestPermission(::launchPermission)
+                            }else{
+                                Info(mainActivityViewModel)
+                                FrontEndServer(mainActivityViewModel)
+                                BackendServer(mainActivityViewModel,::startServer,::stopServer)
+                                Select(mainActivityViewModel,requestPermissionLauncherSDCard,requestPermissionLauncherInternal, fileHandlerHelper)
+                            }
                     }
                 }
             }
@@ -105,6 +113,16 @@ class MainActivity : ComponentActivity() {
     private fun stopServer() {
         val serviceIntent = Intent(this, ServerService::class.java)
         stopService(serviceIntent)
+    }
+
+    private val manageAllFilesLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        mainActivityViewModel.checkPermission()
+    }
+
+    private fun launchPermission(){
+        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+        intent.data = "package:${this.packageName}".toUri()
+        manageAllFilesLauncher.launch(intent)
     }
 
     override fun onDestroy()  {

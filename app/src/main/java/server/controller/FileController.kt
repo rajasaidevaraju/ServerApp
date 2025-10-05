@@ -16,6 +16,7 @@ import server.service.NetworkService
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.system.measureTimeMillis
 
 class FileController(private val context: Context,
                      private val database: AppDatabase, private val fileService: FileService,
@@ -128,12 +129,11 @@ class FileController(private val context: Context,
     }
 
     private fun uploadFile(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-
         val internalURI = getInternalURI()
         val sdCardURI = getSdCardURI()
 
-        if(internalURI==null){
-            return internalServerError(null,"Internal storage root folder not configured.")
+        if (internalURI == null) {
+            return internalServerError(null, "Internal storage root folder not configured.")
         }
 
         var destinationDir: DocumentFile? = null
@@ -141,7 +141,10 @@ class FileController(private val context: Context,
         var uploadTarget = "internal"
         try {
             val params = session.parameters
-            val contentLength = session.headers["content-length"]!!.toLong()
+            val contentLength = session.headers["content-length"]?.toLong()
+            if (contentLength == null) {
+                return badRequest("Content-Length header missing")
+            }
             val threeGBInBytes = 3L * 1024 * 1024 * 1024
 
             val target = params["uploadTarget"]?.firstOrNull()
@@ -149,25 +152,25 @@ class FileController(private val context: Context,
                 uploadTarget = target
             }
             if (uploadTarget == "external") {
-                if(sdCardURI==null){
-                    return internalServerError(null,"External storage root folder not configured.")
+                if (sdCardURI == null) {
+                    return internalServerError(null, "External storage root folder not configured.")
                 }
-                val (_,freeExternal)=fileService.getExternalMemoryData()
-                if (freeExternal  - contentLength < threeGBInBytes) {
+                val (_, freeExternal) = fileService.getExternalMemoryData()
+                if (freeExternal - contentLength < threeGBInBytes) {
                     return insufficientStorage()
                 }
                 destinationDir = DocumentFile.fromTreeUri(context, sdCardURI)
-            }else if(target=="internal"){
-                val (_,freeInternal)=fileService.getInternalMemoryData()
+            } else if (uploadTarget == "internal") {
+                val (_, freeInternal) = fileService.getInternalMemoryData()
                 if (freeInternal - contentLength < threeGBInBytes) {
                     return insufficientStorage()
                 }
-                destinationDir= DocumentFile.fromTreeUri(context, internalURI)
-            }else{
+                destinationDir = DocumentFile.fromTreeUri(context, internalURI)
+            } else {
                 return badRequest("Invalid upload target")
             }
             if (destinationDir == null || destinationDir.isFile) {
-                return internalServerError(null,"Could not store the file")
+                return internalServerError(null, "Could not store the file")
             }
 
             val boundary = extractBoundary(session.headers)
@@ -179,13 +182,12 @@ class FileController(private val context: Context,
             destinationFile = destinationDir.createFile("video/mp4", fileName)
             val destinationFileURI = destinationFile?.uri
             if (destinationFile == null || destinationFileURI == null) {
-                return internalServerError(null,"File creation failed")
+                return internalServerError(null, "File creation failed")
             }
             val destinationOutputStream = context.contentResolver.openOutputStream(destinationFileURI)
             if (destinationOutputStream == null) {
-                return internalServerError(null,"Could not write to file")
+                return internalServerError(null, "Could not write to file")
             }
-            // Assuming networkService is accessible; otherwise, move this logic to FileService
             val originalFileName = networkService.processMultipartFormData(
                 session.inputStream,
                 boundary,
@@ -203,7 +205,7 @@ class FileController(private val context: Context,
                 finalFileName = insertStringBeforeExtension(originalFileName, " ($i)")
                 while (destinationDir.findFile(finalFileName) != null || database.fileDao().isFileNamePresent(finalFileName)) {
                     i += 1
-                    finalFileName = insertStringBeforeExtension(fileName, " ($i)")
+                    finalFileName = insertStringBeforeExtension(originalFileName, " ($i)")
                     if (i == 10) {
                         finalFileName = fileName
                         break
@@ -217,8 +219,8 @@ class FileController(private val context: Context,
             return okRequest("File Stored Successfully")
         } catch (exception: Exception) {
             destinationFile?.delete()
-            val message=exception.message?:"Could not complete file upload"
-            return  internalServerError(exception,message)
+            val message = exception.message ?: "Could not complete file upload"
+            return internalServerError(exception, message)
         }
     }
 
@@ -363,20 +365,27 @@ class FileController(private val context: Context,
     }
 
     private fun scanFolders(sdCardURI: Uri?, internalURI: Uri?): NanoHTTPD.Response {
-
+        var sdCardScanTime: Long = 0
+        var internalScanTime: Long = 0
+        val tag="ScanTime"
         if(internalURI==null){
             return internalServerError(null,"Choose a root folder")
         }
 
         val rows: MutableList<Long> = mutableListOf()
         if (sdCardURI != null) {
-            val tempRows = fileService.scanFolder(sdCardURI)
-            rows.addAll(tempRows)
+            Log.d(tag, "SD Card scan begins")
+            sdCardScanTime = measureTimeMillis {
+                rows.addAll(fileService.scanFolder(sdCardURI))
+            }
+            Log.d(tag, "SD Card scan took: $sdCardScanTime ms")
         }
 
-        val tempRows = fileService.scanFolder(internalURI)
-        rows.addAll(tempRows)
-
+        Log.d(tag, "Internal storage scan begins")
+        internalScanTime = measureTimeMillis {
+            rows.addAll(fileService.scanFolder(internalURI))
+        }
+        Log.d(tag, "Internal storage scan took: $internalScanTime ms")
         val notInsertedRows = rows.count { it == -1L }
 
         return okRequest("${rows.size - notInsertedRows} files inserted successfully")

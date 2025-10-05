@@ -11,11 +11,13 @@ import androidx.documentfile.provider.DocumentFile
 import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
+import kotlin.system.measureTimeMillis
 
 
 class FileHandlerHelper(private val context: Context){
 
     private val invalidChars = Regex("[<>:\"/\\\\|?*\\x00-\\x1F]")
+    private val validExtensions = setOf("mp4", "avi", "mov", "mkv", "webm")
 
     fun isSdCardAvailable():Boolean{
         var sdCardAvailable = false
@@ -111,23 +113,46 @@ class FileHandlerHelper(private val context: Context){
     }
 
     fun getAllFilesMetaInDirectory(uri: Uri): List<FileMeta> {
-        val documentFile = DocumentFile.fromTreeUri(context, uri)
+        val root = DocumentFile.fromTreeUri(context, uri)
+        val tag = "ScanTime"
+        if(root==null){
+            return emptyList()
+        }
         val fileMetas = mutableListOf<FileMeta>()
+        val queue = ArrayDeque<DocumentFile>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val dir = queue.removeFirst()
+            val files:Array<DocumentFile>
+            val time = measureTimeMillis {
+                files= dir.listFiles()
+            }
+            Log.d(tag, "Time to list files in ${dir.name}: $time ms")
 
-        documentFile?.let { dir ->
-            for (file in dir.listFiles()) {
-                if (file.isDirectory) {
-                    fileMetas.addAll(getAllFilesMetaInDirectory(file.uri))
-                } else {
-                    val fileName=file.name
-                    if(fileName!=null){
-                        fileMetas.add(FileMeta(fileName=fileName, fileUri = file.uri))
+            val processingTime = measureTimeMillis {
+                for (file in files) {
+                    val name=file.name
+                    val uri=file.uri
+                    if(name.isNullOrBlank()){
+                        continue
+                    }
+                    if (file.isDirectory) {
+                        queue.add(file)
+                    } else {
+                        if (isValidVideoFileName(name)) {
+                            fileMetas.add(FileMeta(fileName = name, fileUri = uri))
+                        }
                     }
                 }
             }
+            Log.d(tag, "Time to process files in ${dir.name}: $processingTime ms")
         }
-
         return fileMetas
+    }
+
+    fun isValidVideoFileName(fileName: String): Boolean {
+        val extension = fileName.substringAfterLast(".", "").lowercase()
+        return extension in validExtensions
     }
 
     fun serveStaticFile(filePath: String): NanoHTTPD.Response? {

@@ -1,12 +1,8 @@
-import android.app.usage.StorageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.BatteryManager
-import android.os.StatFs
-import android.os.storage.StorageManager
-import android.os.storage.StorageVolume
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder

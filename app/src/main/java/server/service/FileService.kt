@@ -21,8 +21,7 @@ import helpers.FileHandlerHelper
 import helpers.SharedPreferencesHelper
 import org.json.JSONObject
 import java.io.FileInputStream
-import java.io.IOException
-import java.io.InputStream
+import kotlin.system.measureTimeMillis
 
 
 class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
@@ -112,14 +111,31 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
     fun scanFolder(selectedDirectoryUri: Uri): List<Long> {
-        val fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
-        val fileMetaFromDb=fileDao.getAllFiles().toSet()
-        val newFiles = fileMetas.filter { it !in fileMetaFromDb }
-        if (newFiles.isNotEmpty()) {
-            val rows = fileDao.insertFiles(newFiles)
-            return rows
+        var fileMetas: List<FileMeta> = emptyList()
+        var fileMetaFromDb: Set<FileMeta> = emptySet()
+        var newFiles: List<FileMeta> = emptyList()
+
+        val tag = "ScanTime"
+
+        val timeGetFilesMeta = measureTimeMillis {
+            fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
+        }
+        Log.d(tag, "getAllFilesMetaInDirectory took ${timeGetFilesMeta}ms (${fileMetas.size} files)")
+
+        val timeGetDbFiles = measureTimeMillis {
+            fileMetaFromDb = fileDao.getAllFiles().toSet()
+        }
+        Log.d(tag, "getAllFiles (DB fetch + toSet) took ${timeGetDbFiles}ms (${fileMetaFromDb.size} entries)")
+
+        val timeFilterNewFiles = measureTimeMillis {
+            newFiles = fileMetas.filter { it !in fileMetaFromDb }
+        }
+        Log.d(tag, "Filtering new files took ${timeFilterNewFiles}ms (${newFiles.size} new files)")
+
+        return if (newFiles.isNotEmpty()) {
+            fileDao.insertFiles(newFiles)
         } else {
-            return emptyList()
+            emptyList()
         }
     }
 

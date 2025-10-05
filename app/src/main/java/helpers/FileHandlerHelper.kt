@@ -150,6 +150,13 @@ class FileHandlerHelper(private val context: Context){
         return fileMetas
     }
 
+    fun listVideos(){
+       val root= Environment.getExternalStorageDirectory()
+        // TODO use File api to get list of files instead of Document File API
+
+    }
+
+
     fun isValidVideoFileName(fileName: String): Boolean {
         val extension = fileName.substringAfterLast(".", "").lowercase()
         return extension in validExtensions

@@ -1,6 +1,7 @@
 package com.example.serverapp.ui.homeview
 
 import android.content.Intent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -224,6 +225,44 @@ fun RequestPermission(onRequestPermission: () -> Unit){
                 modifier = Modifier.padding(end = 10.dp)
             ) { Text("Launch Settings") }
 
+        }
+    }
+}
+
+@Composable
+fun DatabaseManagement(
+    mainActivityViewModel: MainActivityViewModel,
+    exportDbAction: () -> Unit,
+    importDbLauncher: ActivityResultLauncher<Array<String>>
+) {
+    StyledCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StyledText(text = "Database Export:")
+            Spacer(Modifier.weight(1f))
+            CommonButton(
+                buttonText = "Export",
+                onClick = exportDbAction,
+                longPressToastMessage = "Export Database to Backup File"
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StyledText(text = "Database Import:")
+            Spacer(Modifier.weight(1f))
+            CommonButton(
+                buttonText = "Import",
+                onClick = { importDbLauncher.launch(arrayOf("*/*")) },
+                longPressToastMessage = "Import/Restore Database from Backup File"
+            )
+        }
+        val databaseActionStatus by mainActivityViewModel.databaseActionStatus.observeAsState("")
+        if (databaseActionStatus.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Status: $databaseActionStatus",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

@@ -1,7 +1,4 @@
 package com.example.serverapp
-
-
-
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -37,6 +34,7 @@ import com.example.serverapp.ui.homeview.Select
 import com.example.serverapp.viewmodel.MainActivityViewModel
 import helpers.FileHandlerHelper
 import androidx.core.net.toUri
+import com.example.serverapp.ui.homeview.DatabaseManagement
 import com.example.serverapp.ui.homeview.RequestPermission
 
 
@@ -97,6 +95,7 @@ class MainActivity : ComponentActivity() {
                                 FrontEndServer(mainActivityViewModel)
                                 BackendServer(mainActivityViewModel,::startServer,::stopServer)
                                 Select(mainActivityViewModel,requestPermissionLauncherSDCard,requestPermissionLauncherInternal, fileHandlerHelper)
+                                DatabaseManagement(mainActivityViewModel,::exportDatabase, importDbLauncher)
                             }
                     }
                 }
@@ -125,15 +124,21 @@ class MainActivity : ComponentActivity() {
         manageAllFilesLauncher.launch(intent)
     }
 
+    private val importDbLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let {
+            mainActivityViewModel.importDatabase(it)
+        }
+    }
+
+    private fun exportDatabase() {
+        mainActivityViewModel.exportDatabase(applicationContext, "server_app_db_backup_${System.currentTimeMillis()}.db")
+    }
+
     override fun onDestroy()  {
         super.onDestroy()
         stopServer()
         unregisterReceiver(receiver)
     }
-
-
-
-
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {

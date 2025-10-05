@@ -131,7 +131,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             newFiles = fileMetas.filter { it !in fileMetaFromDb }
         }
         Log.d(tag, "Filtering new files took ${timeFilterNewFiles}ms (${newFiles.size} new files)")
-
+        fileHandlerHelper.listVideos()
         return if (newFiles.isNotEmpty()) {
             fileDao.insertFiles(newFiles)
         } else {

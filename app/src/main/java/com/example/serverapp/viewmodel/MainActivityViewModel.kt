@@ -2,6 +2,7 @@
 package com.example.serverapp.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
@@ -11,7 +12,11 @@ import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
 import database.AppDatabase
 import helpers.SharedPreferencesHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 
 class MainActivityViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -26,6 +31,8 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     val isServerRunning= MutableLiveData<Boolean>(false)
     private val _hasPermission = MutableLiveData<Boolean>(Environment.isExternalStorageManager())
     val hasPermission: LiveData<Boolean> get() = _hasPermission
+    val databaseActionStatus = MutableLiveData<String>("")
+
     init {
         loadPrefs()
         viewModelScope.launch {
@@ -87,4 +94,51 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     fun checkPermission() {
         _hasPermission.value = Environment.isExternalStorageManager()
     }
+
+    fun exportDatabase(context: Context, fileName: String) = viewModelScope.launch(Dispatchers.IO) {
+        val databasePath = context.getDatabasePath("app_database").absolutePath
+        val databaseFile = File(databasePath)
+
+        if (!databaseFile.exists()) {
+            databaseActionStatus.postValue("Error: Database file not found.")
+            return@launch
+        }
+
+        val exportDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        exportDir.mkdirs()
+        val exportFile = File(exportDir, fileName)
+
+        try {
+            FileInputStream(databaseFile).use { input ->
+                FileOutputStream(exportFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            databaseActionStatus.postValue("Export successfully to Downloads/$fileName")
+        } catch (e: Exception) {
+            databaseActionStatus.postValue("Export failed: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    fun importDatabase(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        val databasePath = getApplication<Application>().getDatabasePath("app_database").absolutePath
+        val databaseFile = File(databasePath)
+        val context = getApplication<Application>().applicationContext
+
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(databaseFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            AppDatabase.resetInstance()
+
+            databaseActionStatus.postValue("Import successful! App restart recommended.")
+        } catch (e: Exception) {
+            databaseActionStatus.postValue("Import failed: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
 }

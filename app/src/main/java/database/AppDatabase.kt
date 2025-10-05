@@ -50,6 +50,11 @@ abstract class AppDatabase : RoomDatabase() {
                 return instance
             }
         }
+
+        fun resetInstance() {
+            INSTANCE = null
+        }
+
         private val MIGRATION_1_2: Migration = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE file_meta ADD COLUMN screenshot_data TEXT")

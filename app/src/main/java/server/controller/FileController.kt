@@ -387,7 +387,6 @@ class FileController(private val context: Context,
         }
         Log.d(tag, "Internal storage scan took: $internalScanTime ms")
         val notInsertedRows = rows.count { it == -1L }
-
         return okRequest("${rows.size - notInsertedRows} files inserted successfully")
     }
 

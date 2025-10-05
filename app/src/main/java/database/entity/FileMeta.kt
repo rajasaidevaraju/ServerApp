@@ -20,7 +20,9 @@ data class FileMeta(
     @ColumnInfo(name = "file_uri")
     var fileUri: Uri,
     @ColumnInfo(name = "screenshot_data")
-    val screenshotData: String? = null
+    val screenshotData: String? = null,
+    @ColumnInfo(name = "file_size_bytes", defaultValue = "0")
+    val fileSize: Long=0L
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

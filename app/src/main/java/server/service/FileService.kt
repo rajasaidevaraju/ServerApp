@@ -175,6 +175,22 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
 
     }
+
+    fun syncFileSizesWithStorage(){
+        val files=fileDao.getAllFiles()
+        for(file in files){
+            if(file.fileSize==0L){
+                val path=file.fileUri.path
+                if(path!==null){
+                    val fileObject=File(path)
+                    if(fileObject.exists()){
+                        val size=fileObject.length()
+                        fileDao.updateFileSize(file.fileId,size)
+                    }
+                }
+            }
+        }
+    }
     fun getFileDetails(fileId: Long?): ServiceResult {
         if(fileId==null){
             return ServiceResult(success = false, message = "Missing ID")

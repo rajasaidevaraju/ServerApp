@@ -21,8 +21,8 @@ interface FileDAO {
     @Query("SELECT fileId, file_name,file_uri,file_size_bytes  FROM file_meta")
     fun getAllFiles(): List<FileMeta>
 
-    @Query("SELECT fileId, file_name, file_size_bytes, file_uri  FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
-    fun getFilesPaginated(offset:Int, pageSize:Int): List<FileMeta>
+    @Query("SELECT fileId, file_name as fileName, file_size_bytes as fileSize  FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
+    fun getFilesPaginated(offset:Int, pageSize:Int): List<FileMetaSimple>
 
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
@@ -51,6 +51,9 @@ interface FileDAO {
     @Query("UPDATE file_meta SET file_uri = :uri WHERE fileId = :fileId")
     fun updateFileUri(fileId: Long, uri: String): Int
 
+    @Query("UPDATE file_meta SET file_size_bytes = :fileSize WHERE fileId = :fileId")
+    fun updateFileSize(fileId: Long, fileSize: Long): Int
+
     @Query("UPDATE file_meta SET screenshot_data = :screenshotData WHERE fileId = :fileId")
     fun updateScreenshotData(fileId: Long, screenshotData: String)
 
@@ -69,11 +72,11 @@ interface FileDAO {
     fun getFileWithPerformers(fileId: Long): List<FileDetailsWithPerformers>
 
 
-    @Query("""SELECT file_meta.fileId, file_meta.file_name, file_meta.file_uri, file_meta.file_size_bytes FROM file_meta
+    @Query("""SELECT file_meta.fileId as fileId, file_meta.file_name as fileName, file_meta.file_size_bytes as fileSize FROM file_meta
             INNER JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
             WHERE video_actress_cross_ref.actressId=:performerId
             ORDER BY file_meta.fileId DESC LIMIT :pageSize OFFSET :offset""")
-    fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<FileMeta>
+    fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<FileMetaSimple>
 }
 
 data class Item(
@@ -85,6 +88,12 @@ data class FileDetails(
     val name: String,
     val id: Long,
     val performers: List<Item>
+)
+
+data class FileMetaSimple(
+    val fileId: Long,
+    val fileName: String,
+    val fileSize: Long
 )
 
 

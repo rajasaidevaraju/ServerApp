@@ -2,9 +2,8 @@ package server.controller
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import database.AppDatabase
+import database.dao.FileMetaSimple
 import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
@@ -17,8 +16,6 @@ import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlin.system.measureTimeMillis
-
 class FileController(private val context: Context,
                      private val database: AppDatabase, private val fileService: FileService,
                      private val networkService: NetworkService,
@@ -83,7 +80,7 @@ class FileController(private val context: Context,
         }
         val offset = (pageNo - 1) * pageSize
 
-        val paginatedFileData:List<FileMeta>
+        val paginatedFileData:List<FileMetaSimple>
         if(performerId==null){
             paginatedFileData=fileDao.getFilesPaginated(offset, pageSize)
         }else{
@@ -382,6 +379,7 @@ class FileController(private val context: Context,
                 return internalServerError(null,"Choose a root folder")
             }
             val result=fileService.repairPath(internalURI, sdCardURI)
+            fileService.syncFileSizesWithStorage()
             return okRequest(result.message)
         } catch (e: Exception) {
             return internalServerError(e,"Repair operation failed")

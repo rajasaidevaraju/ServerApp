@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -22,8 +23,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     private val prefHandler = SharedPreferencesHelper(application)
     private val database  by lazy { AppDatabase.getDatabase(application) }
-    val sdCardUri = MutableLiveData<Uri?>()
-    val internalUri = MutableLiveData<Uri?>()
     val rowCount = MutableLiveData<Int>(0)
     val uiServerMode = MutableLiveData<Boolean>(false)
     val frontEndUrl=MutableLiveData<String?>()
@@ -45,22 +44,8 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun loadPrefs() {
-        sdCardUri.value = prefHandler.getSDCardURI()
-        internalUri.value = prefHandler.getInternalURI()
         uiServerMode.value=prefHandler.getUIServerMode()
         frontEndUrl.value=prefHandler.getFrontEndUrl()
-    }
-
-    fun saveSDCardUri(uri: Uri) {
-        prefHandler.storeSDCardURI(uri)
-        sdCardUri.value = uri
-    }
-
-    fun saveInternalUri(uri: Uri) {
-
-        prefHandler.storeInternalURI(uri)
-        internalUri.value = uri
-
     }
 
     fun setUIServerMode(mode:Boolean){
@@ -125,13 +110,20 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         val databasePath = getApplication<Application>().getDatabasePath("app_database").absolutePath
         val databaseFile = File(databasePath)
         val context = getApplication<Application>().applicationContext
-
         try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(databaseFile).use { output ->
-                    input.copyTo(output)
+            val inputStream=context.contentResolver.openInputStream(uri);
+            if(inputStream==null){
+                databaseActionStatus.postValue("No input stream from db backup file")
+            }else{
+
+                Log.d("MainActivity123","using input stream, dbPath $databasePath isfile ${databaseFile.isFile}")
+                inputStream.use {
+                    FileOutputStream(databaseFile).use { output ->
+                        it.copyTo(output)
+                    }
                 }
             }
+
             AppDatabase.resetInstance()
 
             databaseActionStatus.postValue("Import successful! App restart recommended.")

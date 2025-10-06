@@ -26,8 +26,10 @@ data class FileMeta(
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is FileMeta) return false
-        return fileName == other.fileName && fileUri.toString() == other.fileUri.toString()
+        return when (other) {
+            is FileMeta -> fileName == other.fileName && fileUri.toString() == other.fileUri.toString()
+            else -> false
+        }
     }
 
     override fun hashCode(): Int {
@@ -37,11 +39,6 @@ data class FileMeta(
     }
 }
 
-data class SimplifiedFileMeta(
-    val fileId: Int,
-    @ColumnInfo(name = "file_name")
-    val fileName: String
-)
 
 class Converters {
     @TypeConverter

@@ -20,7 +20,7 @@ class NetworkService {
 
 
 
-    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long,directory: DocumentFile):String {
+    fun processMultipartFormData(inputStream: InputStream, boundary: String, outputStream: OutputStream,contentLength: Long):String {
         val boundaryBytes = "--$boundary\r\n".toByteArray(Charsets.UTF_8)
         val endBoundaryBytes = "\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8)
 

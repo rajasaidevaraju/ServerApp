@@ -291,7 +291,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         return response
     }
 
-    private fun handlePostRequest(url: String, session: IHTTPSession,sdCardURI: Uri?, internalURI:Uri): Response{
+    private fun handlePostRequest(url: String, session: IHTTPSession): Response{
         val gson: Gson = GsonBuilder().create()
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON,
             gson.toJson(mapOf("message" to "The requested resource could not be found")))
@@ -350,14 +350,14 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         }
         return response
     }
-    private fun handleDeleteRequest(url: String, session: IHTTPSession,sdCardURI: Uri?, internalURI:Uri): Response{
+    private fun handleDeleteRequest(url: String, session: IHTTPSession): Response{
         val gson: Gson = GsonBuilder().create()
         val response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON,
             gson.toJson(mapOf("message" to "The requested resource could not be found")))
         return response
     }
 
-    private fun handlePutRequest(url: String, session: IHTTPSession,sdCardURI: Uri?, internalURI:Uri): Response {
+    private fun handlePutRequest(url: String, session: IHTTPSession): Response {
         val gson: Gson = GsonBuilder().create()
         val response: Response = newFixedLengthResponse(
             Status.NOT_FOUND, MIME_JSON,
@@ -370,8 +370,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
         val uiServerLocation=prefHandler.getFrontEndUrl()
         val uiServerMode=prefHandler.getUIServerMode()
-        val sdCardURI = prefHandler.getSDCardURI()
-        val internalURI = prefHandler.getInternalURI()
         val gson: Gson = GsonBuilder().create()
         var responseContent=mapOf("message" to "The requested resource could not be found")
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
@@ -393,10 +391,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         val serverRequest=url.startsWith("/server")
 
         if(serverRequest){
-
-            if(internalURI==null){
-                return newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "No Root Folder Selected")))
-            }
 
             url=url.substring(7,url.length)
 
@@ -422,9 +416,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
             response=when (session.method){
                 Method.GET-> handleGetRequest(url,session)
-                Method.PUT -> handlePutRequest(url,session,sdCardURI,internalURI)
-                Method.POST -> handlePostRequest(url,session,sdCardURI,internalURI)
-                Method.DELETE -> handleDeleteRequest(url,session,sdCardURI,internalURI)
+                Method.PUT -> handlePutRequest(url,session)
+                Method.POST -> handlePostRequest(url,session)
+                Method.DELETE -> handleDeleteRequest(url,session)
                 else-> newFixedLengthResponse(Status.METHOD_NOT_ALLOWED, MIME_JSON, gson.toJson(mapOf("message" to "Method Not Allowed")))
             }
         }

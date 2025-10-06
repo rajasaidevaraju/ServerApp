@@ -20,8 +20,8 @@ import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.FileHandlerHelper
 import helpers.SharedPreferencesHelper
 import org.json.JSONObject
+import java.io.File
 import java.io.FileInputStream
-import kotlin.system.measureTimeMillis
 
 
 class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
@@ -58,31 +58,19 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         val names=HashSet<String>();
         val internalURI=prefHandler.getInternalURI();
         if(internalURI!=null){
-            names.addAll(getAllFileNamesInURI(internalURI))
+            val files=fileHandlerHelper.getAllFilesMetaInDirectory(internalURI)
+            for(file in files){
+                names.add(file.fileName)
+            }
         }
         val sdCardURI=prefHandler.getSDCardURI();
         if(sdCardURI!=null){
-            names.addAll(getAllFileNamesInURI(sdCardURI))
-        }
-        return names
-    }
-
-    private fun getAllFileNamesInURI(uri: Uri):HashSet<String>{
-        val names=HashSet<String>();
-        val documentFile = DocumentFile.fromTreeUri(context, uri)
-        if (documentFile != null && documentFile.isDirectory) {
-            for (file in documentFile.listFiles()) {
-                if (file.isDirectory) {
-                    names.addAll(getAllFileNamesInURI(file.uri))
-                }else{
-                    val fileName=file.name
-                    if(fileName!=null){
-                        names.add(fileName)
-                    }
-                }
+            val files=fileHandlerHelper.getAllFilesMetaInDirectory(sdCardURI)
+            for(file in files){
+                names.add(file.fileName)
             }
         }
-        return names;
+        return names
     }
 
 
@@ -111,27 +99,15 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
     fun scanFolder(selectedDirectoryUri: Uri): List<Long> {
-        var fileMetas: List<FileMeta> = emptyList()
-        var fileMetaFromDb: Set<FileMeta> = emptySet()
-        var newFiles: List<FileMeta> = emptyList()
+        val fileMetasFromDirectory=fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
+        val fileMetaFromDb= fileDao.getAllFiles().toSet()
+        val newFiles: MutableList<FileMeta> = mutableListOf()
 
-        val tag = "ScanTime"
-
-        val timeGetFilesMeta = measureTimeMillis {
-            fileMetas = fileHandlerHelper.getAllFilesMetaInDirectory(selectedDirectoryUri)
+        for(fileMeta in fileMetasFromDirectory){
+            if(!fileMetaFromDb.contains(fileMeta)){
+                newFiles.add(fileMeta)
+            }
         }
-        Log.d(tag, "getAllFilesMetaInDirectory took ${timeGetFilesMeta}ms (${fileMetas.size} files)")
-
-        val timeGetDbFiles = measureTimeMillis {
-            fileMetaFromDb = fileDao.getAllFiles().toSet()
-        }
-        Log.d(tag, "getAllFiles (DB fetch + toSet) took ${timeGetDbFiles}ms (${fileMetaFromDb.size} entries)")
-
-        val timeFilterNewFiles = measureTimeMillis {
-            newFiles = fileMetas.filter { it !in fileMetaFromDb }
-        }
-        Log.d(tag, "Filtering new files took ${timeFilterNewFiles}ms (${newFiles.size} new files)")
-        fileHandlerHelper.listVideos()
         return if (newFiles.isNotEmpty()) {
             fileDao.insertFiles(newFiles)
         } else {
@@ -139,10 +115,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
     }
 
-
     fun addPerformerToFile(postData: String?,fileId:Long?):ServiceResult{
-
-
         if(fileId==null){
             return ServiceResult(success = false, message = "Missing ID")
         }
@@ -180,7 +153,6 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
 
         for(file in filesInFileSystem) {
-
             val fileName=file.fileName
             val fileInDb=fileMetaMap[fileName]
             if(fileInDb!=null && fileInDb!=file){
@@ -190,8 +162,13 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             }
         }
 
+        var updateCount=0
+
         if(filesToRepair.isNotEmpty()) {
-            val updateCount=fileDao.updateFiles(filesToRepair)
+            for(file in filesToRepair){
+                fileDao.updateFileUri(file.fileId,file.fileUri.toString())
+                updateCount++
+            }
             return ServiceResult(success = true, message = "Repaired $updateCount files")
         }else{
             return ServiceResult(success = true, message = "No files to repair")
@@ -237,16 +214,23 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         val dotIndex=oldName.lastIndexOf('.')
         val extension=if(dotIndex!=-1) oldName.substring(dotIndex) else ""
         val newNameWithExtension=newName+extension
-        val file = fileMeta.let { DocumentFile.fromTreeUri(context, it.fileUri) }
-        if (file == null || !file.isFile) {
+        val path=fileMeta.fileUri.path
+        if(path==null){
             return ServiceResult(false,"File not found in the file system")
         }
-        file.renameTo(newNameWithExtension)
-        val success= newName != file.name
+        val file = File(path)
+        if (!file.exists()||!file.isFile) {
+            return ServiceResult(false,"File not found in the file system")
+        }
+        val newFile=File(file.parentFile,newNameWithExtension)
+        if(newFile.exists()){
+            return ServiceResult(false,"File with the same name already exists")
+        }
+        val success=file.renameTo(newFile)
         if(!success) {
             return ServiceResult(false,"Could not rename file")
         }
-        val updatedFileMeta = fileMeta.copy(fileName = file.name.toString(), fileUri =  file.uri)
+        val updatedFileMeta = fileMeta.copy(fileName = newFile.name.toString(), fileUri =  Uri.fromFile(newFile))
         fileDao.updateFile(updatedFileMeta)
 
         return ServiceResult(true, "File renamed successfully")
@@ -254,20 +238,22 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     fun streamFile(fileId: Long, context: Context, headers: Map<String, String>): NanoHTTPD.Response {
 
         val fileMeta = fileDao.getFileById(fileId)
-        val file = fileMeta?.let { DocumentFile.fromTreeUri(context, it.fileUri) }
+        val filePath=fileMeta?.fileUri?.path
         val gson: Gson = GsonBuilder().create()
-
-
-        if (fileMeta == null || file == null || !file.isFile) {
-            val responseContent= mapOf("message" to "File not found or inaccessible")
-            val fileNotFoundResponse = newFixedLengthResponse(
-                Status.NOT_FOUND,
-                "application/json",
-                gson.toJson(responseContent)
-            )
+        val responseContent= mapOf("message" to "File not found or inaccessible")
+        val fileNotFoundResponse = newFixedLengthResponse(
+            Status.NOT_FOUND,
+            "application/json",
+            gson.toJson(responseContent)
+        )
+        if(filePath==null){
             return fileNotFoundResponse
         }
 
+        val file = File(filePath)
+        if (!file.exists()||!file.isFile) {
+            return fileNotFoundResponse
+        }
         try {
             val fileLength = file.length()
             val rangeHeader = headers["range"]
@@ -286,13 +272,12 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getFullResponse(file: DocumentFile,context:Context): NanoHTTPD.Response {
+    private fun getFullResponse(file: File,context:Context): NanoHTTPD.Response {
         try {
-            val inputStream = context.contentResolver.openInputStream(file.uri)
-
+            val inputStream = FileInputStream(file)
             val fileSize = file.length()
             val response = NanoHTTPD.newChunkedResponse(
-                NanoHTTPD.Response.Status.OK,
+                Status.OK,
                 mimeType,
                 inputStream
             )
@@ -302,8 +287,8 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }catch (e: Exception) {
             // Handle exceptions or errors while accessing the file
             e.printStackTrace()
-            return NanoHTTPD.newFixedLengthResponse(
-                NanoHTTPD.Response.Status.INTERNAL_ERROR,
+            return newFixedLengthResponse(
+                Status.INTERNAL_ERROR,
                 "text/plain",
                 "Internal Server Error"
             )
@@ -311,19 +296,10 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getPartialResponse(file: DocumentFile, rangeHeader: String, fileLength: Long, context:Context): NanoHTTPD.Response {
+    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, context:Context): NanoHTTPD.Response {
 
         try {
-
-            // Open the file descriptor and get the file channel
-            val pfd = context.contentResolver.openFileDescriptor(file.uri, "r")
-            val fileDescriptor = pfd?.fileDescriptor
-            val fileInputStream = FileInputStream(fileDescriptor)
-            val fileChannel = fileInputStream.channel
-
-            //val inputStream:InputStream = context.contentResolver.openInputStream(file.uri)
-            //inputStream.skip(1)
-
+            val fileInputStream = FileInputStream(file)
 
             val rangeValue = rangeHeader.trim().substring("bytes=".length)
             val start: Long
@@ -341,19 +317,13 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             if (end > fileLength - 1) {
                 end = fileLength - 1
             }
-
-
             fileInputStream.skip(start)
             val contentLength = end - start + 1
-
-
             val response = NanoHTTPD.newChunkedResponse(
                 Status.PARTIAL_CONTENT,
                 mimeType,
                 fileInputStream
             )
-            //Log.d("MKServer Video","INSIDE RETURN PARTIAL-RESPONSE and rangeHeader $rangeHeader")
-            //Log.d("MKServer Video"," Start:$start End:$end FileLength:$fileLength")
             response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", contentLength.toString())
             response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
@@ -367,5 +337,4 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             return newFixedLengthResponse(Status.INTERNAL_ERROR, "application/json",jsonContent )
         }
     }
-
 }

@@ -11,7 +11,7 @@ import androidx.documentfile.provider.DocumentFile
 import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
-import kotlin.system.measureTimeMillis
+import java.io.File
 
 
 class FileHandlerHelper(private val context: Context){
@@ -52,19 +52,6 @@ class FileHandlerHelper(private val context: Context){
         return null
     }
 
-    fun getFolderNameFromUri(uri: Uri?): String? {
-
-        val segments = uri?.pathSegments
-
-        return if(segments.isNullOrEmpty()){
-            null
-        }else{
-            segments.last()
-        }
-
-    }
-
-
     fun isValidFilename(name: String?): Boolean {
         if (name.isNullOrBlank()) {
             return false
@@ -80,82 +67,40 @@ class FileHandlerHelper(private val context: Context){
         return true
     }
 
-    fun getUriForFileName(uri: Uri, fileName: String): DocumentFile? {
-        val documentTree = DocumentFile.fromTreeUri(context, uri)
-
-        if (documentTree != null && documentTree.isDirectory) {
-            val fileList = mutableListOf<Uri>()
-
-            traverseDirectory(documentTree, fileName, fileList)
-
-            // Find the file with the given filename in the list of URIs
-            val fileUri=fileList.firstOrNull()
-            if(fileUri!=null){
-                return DocumentFile.fromSingleUri(context, fileUri)
-            }
-
-        }
-
-        return null
-    }
-
-    private fun traverseDirectory(directory: DocumentFile, fileName: String, fileList: MutableList<Uri>) {
-        val files = directory.listFiles()
-        for (file in files) {
-            if (file.isDirectory) {
-                traverseDirectory(file, fileName, fileList)
-            } else {
-                if (file.name == fileName) {
-                    fileList.add(file.uri)
-                }
-            }
-        }
-    }
-
     fun getAllFilesMetaInDirectory(uri: Uri): List<FileMeta> {
-        val root = DocumentFile.fromTreeUri(context, uri)
-        val tag = "ScanTime"
-        if(root==null){
+        val path=uri.path
+        if(path==null){
+            return emptyList()
+        }
+        val root = File(path)
+
+        if(!root.exists()){
             return emptyList()
         }
         val fileMetas = mutableListOf<FileMeta>()
-        val queue = ArrayDeque<DocumentFile>()
+        val queue = ArrayDeque<File>()
         queue.add(root)
         while (queue.isNotEmpty()) {
             val dir = queue.removeFirst()
-            val files:Array<DocumentFile>
-            val time = measureTimeMillis {
-                files= dir.listFiles()
-            }
-            Log.d(tag, "Time to list files in ${dir.name}: $time ms")
-
-            val processingTime = measureTimeMillis {
-                for (file in files) {
-                    val name=file.name
-                    val uri=file.uri
-                    if(name.isNullOrBlank()){
-                        continue
-                    }
-                    if (file.isDirectory) {
-                        queue.add(file)
-                    } else {
-                        if (isValidVideoFileName(name)) {
-                            fileMetas.add(FileMeta(fileName = name, fileUri = uri))
-                        }
+            val files=dir.listFiles()?: arrayOf()
+            for (file in files) {
+                val name=file.name
+                val uri=Uri.fromFile(file)
+                if(name.isNullOrBlank()){
+                    continue
+                }
+                if (file.isDirectory) {
+                    queue.add(file)
+                } else {
+                    if (isValidVideoFileName(name)) {
+                        fileMetas.add(FileMeta(fileName = name, fileUri = uri))
                     }
                 }
             }
-            Log.d(tag, "Time to process files in ${dir.name}: $processingTime ms")
         }
+
         return fileMetas
     }
-
-    fun listVideos(){
-       val root= Environment.getExternalStorageDirectory()
-        // TODO use File api to get list of files instead of Document File API
-
-    }
-
 
     fun isValidVideoFileName(fileName: String): Boolean {
         val extension = fileName.substringAfterLast(".", "").lowercase()
@@ -189,6 +134,16 @@ class FileHandlerHelper(private val context: Context){
         }
     }
 
+    fun getExternalSdCardPath(): File? {
+        val externalDirs = context.getExternalFilesDirs(null)
+        for (file in externalDirs) {
+            if (file != null && Environment.isExternalStorageRemovable(file)) {
+                val path = file.absolutePath.split("/Android")[0]
+                return File(path)
+            }
+        }
+        return null
+    }
 
 
 

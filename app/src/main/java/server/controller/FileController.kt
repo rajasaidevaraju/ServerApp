@@ -6,13 +6,14 @@ import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.AppDatabase
 import database.entity.FileMeta
-import database.entity.SimplifiedFileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
 import server.service.NetworkService
+import java.io.File
+import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -35,39 +36,39 @@ class FileController(private val context: Context,
         }
     }
     private fun handleGetRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        when {
-            url.startsWith("/fileDetails") -> return getFileDetails(url)
-            url == "/files" -> return getFiles(session)
-            url == "/file" -> return getFile(session)
-            url == "/thumbnail" -> return getThumbnail(session)
-            url == "/name" -> return getFileName(session)
-            else -> return notFound()
+        return when {
+            url.startsWith("/fileDetails") -> getFileDetails(url)
+            url == "/files" -> getFiles(session)
+            url == "/file" -> getFile(session)
+            url == "/thumbnail" -> getThumbnail(session)
+            url == "/name" -> getFileName(session)
+            else -> notFound()
         }
     }
 
     private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        when {
-            url=="/file" -> return uploadFile(session)
-            url.startsWith("/file")&& url.endsWith("/performer") -> return addPerformerToFile(url,session)
-            url=="/thumbnail" -> return updateThumbnail(session)
-            url== "/scan" -> return scanFolders(getSdCardURI(), getInternalURI())
-            else -> return notFound()
+        return when {
+            url=="/file" -> uploadFile(session)
+            url.startsWith("/file")&& url.endsWith("/performer") -> addPerformerToFile(url,session)
+            url=="/thumbnail" -> updateThumbnail(session)
+            url== "/scan" -> scanFolders(getSdCardURI(), getInternalURI())
+            else -> notFound()
         }
     }
 
     private fun handlePutRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        when {
-            url=="/repair" -> return repairPath(getInternalURI(),getSdCardURI())
-            isRenameUrl(url)-> return renameFile(url,session)
-            else -> return notFound()
+        return when {
+            url=="/repair" -> repairPath(getInternalURI(),getSdCardURI())
+            isRenameUrl(url)-> renameFile(url,session)
+            else -> notFound()
         }
     }
 
     private fun handleDeleteRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        when (url) {
-            "/file" -> return deleteFile(session)
-            "/cleanup" -> return cleanupDatabase()
-            else -> return notFound()
+        return when (url) {
+            "/file" -> deleteFile(session)
+            "/cleanup" -> cleanupDatabase()
+            else -> notFound()
         }
     }
 
@@ -82,7 +83,7 @@ class FileController(private val context: Context,
         }
         val offset = (pageNo - 1) * pageSize
 
-        val paginatedFileData:List<SimplifiedFileMeta>
+        val paginatedFileData:List<FileMeta>
         if(performerId==null){
             paginatedFileData=fileDao.getFilesPaginated(offset, pageSize)
         }else{
@@ -136,8 +137,8 @@ class FileController(private val context: Context,
             return internalServerError(null, "Internal storage root folder not configured.")
         }
 
-        var destinationDir: DocumentFile? = null
-        var destinationFile: DocumentFile? = null
+        var destinationDir: File?
+        var destinationFile: File? = null
         var uploadTarget = "internal"
         try {
             val params = session.parameters
@@ -151,26 +152,35 @@ class FileController(private val context: Context,
             if (target != null) {
                 uploadTarget = target
             }
-            if (uploadTarget == "external") {
-                if (sdCardURI == null) {
-                    return internalServerError(null, "External storage root folder not configured.")
+            when (uploadTarget) {
+                "external" -> {
+                    val path=sdCardURI?.path
+                    if (sdCardURI == null||path==null) {
+                        return internalServerError(null, "External storage root folder not configured.")
+                    }
+                    val (_, freeExternal) = fileService.getExternalMemoryData()
+                    if (freeExternal - contentLength < threeGBInBytes) {
+                        return insufficientStorage()
+                    }
+                    destinationDir = File(path)
                 }
-                val (_, freeExternal) = fileService.getExternalMemoryData()
-                if (freeExternal - contentLength < threeGBInBytes) {
-                    return insufficientStorage()
+                "internal" -> {
+                    val path=internalURI.path
+                    if (path==null) {
+                        return internalServerError(null, "External storage root folder not configured.")
+                    }
+                    val (_, freeInternal) = fileService.getInternalMemoryData()
+                    if (freeInternal - contentLength < threeGBInBytes) {
+                        return insufficientStorage()
+                    }
+                    destinationDir = File(path)
                 }
-                destinationDir = DocumentFile.fromTreeUri(context, sdCardURI)
-            } else if (uploadTarget == "internal") {
-                val (_, freeInternal) = fileService.getInternalMemoryData()
-                if (freeInternal - contentLength < threeGBInBytes) {
-                    return insufficientStorage()
+                else -> {
+                    return badRequest("Invalid upload target")
                 }
-                destinationDir = DocumentFile.fromTreeUri(context, internalURI)
-            } else {
-                return badRequest("Invalid upload target")
             }
-            if (destinationDir == null || destinationDir.isFile) {
-                return internalServerError(null, "Could not store the file")
+            if (!destinationDir.isDirectory) {
+                return internalServerError(null, "No directory present")
             }
 
             val boundary = extractBoundary(session.headers)
@@ -179,42 +189,33 @@ class FileController(private val context: Context,
             }
             val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").withZone(ZoneId.of("UTC"))
             val fileName = "defaultFIleName${formatter.format(Instant.now())}.mp4"
-            destinationFile = destinationDir.createFile("video/mp4", fileName)
-            val destinationFileURI = destinationFile?.uri
-            if (destinationFile == null || destinationFileURI == null) {
+            destinationFile = File(destinationDir,fileName)
+            val destinationFileURI = Uri.fromFile(destinationFile)
+            val created=destinationFile.createNewFile()
+            if (!created || destinationFileURI == null) {
                 return internalServerError(null, "File creation failed")
             }
-            val destinationOutputStream = context.contentResolver.openOutputStream(destinationFileURI)
-            if (destinationOutputStream == null) {
-                return internalServerError(null, "Could not write to file")
-            }
-            val originalFileName = networkService.processMultipartFormData(
-                session.inputStream,
-                boundary,
-                destinationOutputStream,
-                contentLength,
-                destinationDir
-            )
-            var renameOp = false
-            if (!database.fileDao().isFileNamePresent(originalFileName)) {
-                renameOp = destinationFile.renameTo(originalFileName)
-            }
-            var finalFileName = originalFileName
-            if (!renameOp) {
-                var i = 1
-                finalFileName = insertStringBeforeExtension(originalFileName, " ($i)")
-                while (destinationDir.findFile(finalFileName) != null || database.fileDao().isFileNamePresent(finalFileName)) {
-                    i += 1
-                    finalFileName = insertStringBeforeExtension(originalFileName, " ($i)")
-                    if (i == 10) {
-                        finalFileName = fileName
-                        break
-                    }
-                }
-                destinationFile.renameTo(finalFileName)
-            }
+            val destinationOutputStream = FileOutputStream(destinationFile)
 
-            val fileMeta = FileMeta(fileName = finalFileName, fileUri = destinationFile.uri)
+            val originalFileName = networkService.processMultipartFormData(
+                session.inputStream, boundary, destinationOutputStream, contentLength)
+
+
+            var newFile = File(destinationDir, originalFileName)
+            var count = 1
+            val nameWithoutExt = newFile.nameWithoutExtension
+            val ext = newFile.extension
+            while (newFile.exists()||database.fileDao().isFileNamePresent(newFile.name)) {
+                val newName = "$nameWithoutExt ($count)${if (ext.isNotEmpty()) ".$ext" else ""}"
+                newFile = File(destinationDir, newName)
+                count++
+            }
+            destinationFile.renameTo(newFile)
+            destinationFile=newFile
+
+            val finalFileName = destinationFile.name
+            val uri=Uri.fromFile(destinationFile)
+            val fileMeta = FileMeta(fileName = finalFileName, fileUri = uri)
             database.fileDao().insertFile(fileMeta)
             return okRequest("File Stored Successfully")
         } catch (exception: Exception) {
@@ -234,15 +235,15 @@ class FileController(private val context: Context,
         if(newName.isNullOrBlank()){
             return badRequest("Missing required parameter: newName")
         }
-        try {
+        return try {
             val result=fileService.renameFile(fileId,newName,context)
             if(result.success){
-                return okRequest(result.message)
+                okRequest(result.message)
             }else{
-                return badRequest(result.message)
+                badRequest(result.message)
             }
         }catch (exception: Exception){
-            return internalServerError(exception,"Could not rename file")
+            internalServerError(exception,"Could not rename file")
         }
     }
 
@@ -260,22 +261,12 @@ class FileController(private val context: Context,
 
 
     private fun extractBoundary(headers:Map<String, String>):String?{
-        val contentType=headers.get("content-type")
+        val contentType= headers["content-type"]
         // example of contentType multipart/form-data; boundary=----WebKitFormBoundaryuRqy8BtHu1nT2dfA
         val regex = "boundary=(.+)".toRegex()
         return contentType?.let { regex.find(it)?.groups?.get(1)?.value }
     }
 
-    private fun insertStringBeforeExtension(fileName: String, insertString: String):String{
-        val regex = Regex("(\\.[^\\.]+)$")
-        val matchResult = regex.find(fileName)
-        return if (matchResult != null) {
-            val index = matchResult.range.first
-            fileName.substring(0, index) + insertString + fileName.substring(index)
-        } else {
-            fileName
-        }
-    }
 
     private fun getThumbnail(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val params = session.parameters
@@ -329,18 +320,18 @@ class FileController(private val context: Context,
     }
 
     private fun getFileDetails(url: String): NanoHTTPD.Response{
-        try {
+        return try {
             val uri = url.split("/")
             val fileId =uri[uri.size-1].toLongOrNull()
             val result=fileService.getFileDetails(fileId)
             if(result.success){
-                return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, result.message)
+                newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, result.message)
             }else{
-                return badRequest(result.message)
+                badRequest(result.message)
             }
 
         }catch (exception: Exception) {
-            return internalServerError(exception,"Could not fetch file details")
+            internalServerError(exception,"Could not fetch file details")
         }
     }
 
@@ -358,35 +349,30 @@ class FileController(private val context: Context,
                 "fileId" to insertedFileId
             )
             val jsonContent: String = gson.toJson(responseContent)
-            return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
+            return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
         } catch (exception: Exception) {
             return internalServerError(exception,"Thumbnail insert or update operation failed")
         }
     }
 
     private fun scanFolders(sdCardURI: Uri?, internalURI: Uri?): NanoHTTPD.Response {
-        var sdCardScanTime: Long = 0
-        var internalScanTime: Long = 0
-        val tag="ScanTime"
+
         if(internalURI==null){
             return internalServerError(null,"Choose a root folder")
         }
 
         val rows: MutableList<Long> = mutableListOf()
         if (sdCardURI != null) {
-            Log.d(tag, "SD Card scan begins")
-            sdCardScanTime = measureTimeMillis {
-                rows.addAll(fileService.scanFolder(sdCardURI))
-            }
-            Log.d(tag, "SD Card scan took: $sdCardScanTime ms")
+            rows.addAll(fileService.scanFolder(sdCardURI))
         }
 
-        Log.d(tag, "Internal storage scan begins")
-        internalScanTime = measureTimeMillis {
-            rows.addAll(fileService.scanFolder(internalURI))
-        }
-        Log.d(tag, "Internal storage scan took: $internalScanTime ms")
+        rows.addAll(fileService.scanFolder(internalURI))
+
         val notInsertedRows = rows.count { it == -1L }
+        val insertedRows = rows.size - notInsertedRows
+        if(insertedRows==0){
+            return okRequest("No new files found")
+        }
         return okRequest("${rows.size - notInsertedRows} files inserted successfully")
     }
 
@@ -411,8 +397,13 @@ class FileController(private val context: Context,
         try {
             val fileId = fileIdStr.toLong()
             val fileMeta = database.fileDao().getFileById(fileId)
-            val file = fileMeta?.let { DocumentFile.fromTreeUri(context, it.fileUri) }
-            if (fileMeta == null || file == null || !file.isFile) {
+            val path=fileMeta?.fileUri?.path
+
+            if (path == null) {
+                return notFound("File not found or inaccessible")
+            }
+            val file = File(path)
+            if(!file.exists()){
                 return notFound("File not found or inaccessible")
             }
             val isDeleted = file.delete()
@@ -428,8 +419,11 @@ class FileController(private val context: Context,
     }
 
     private fun cleanupDatabase(): NanoHTTPD.Response {
-        val filesInStorage=fileService.getFileNamesInStorage();
+        val filesInStorage=fileService.getFileNamesInStorage()
         val removedEntries = dbService.removeAbsentEntries(filesInStorage)
+        if(removedEntries==0){
+            return okRequest("No entries removed")
+        }
         val responseContent = mapOf(
             "message" to "$removedEntries rows removed",
             "rows_deleted" to removedEntries

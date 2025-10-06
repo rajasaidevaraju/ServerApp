@@ -9,7 +9,6 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import database.entity.Actress
-import database.entity.SimplifiedFileMeta
 
 @Dao
 interface FileDAO {
@@ -19,14 +18,11 @@ interface FileDAO {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertFiles(fileMetas: List<FileMeta>):List<Long>
 
-    @Query("SELECT * FROM file_meta")
+    @Query("SELECT fileId, file_name,file_uri,file_size_bytes  FROM file_meta")
     fun getAllFiles(): List<FileMeta>
 
-    @Query("SELECT fileId, file_name FROM file_meta")
-    fun getSimplifiedFilesMeta(): List<SimplifiedFileMeta>
-
-    @Query("SELECT fileId, file_name FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
-    fun getFilesPaginated(offset:Int, pageSize:Int): List<SimplifiedFileMeta>
+    @Query("SELECT fileId, file_name, file_size_bytes, file_uri  FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
+    fun getFilesPaginated(offset:Int, pageSize:Int): List<FileMeta>
 
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
@@ -52,6 +48,9 @@ interface FileDAO {
     @Update
     fun updateFiles(fileMetas: List<FileMeta>): Int
 
+    @Query("UPDATE file_meta SET file_uri = :uri WHERE fileId = :fileId")
+    fun updateFileUri(fileId: Long, uri: String): Int
+
     @Query("UPDATE file_meta SET screenshot_data = :screenshotData WHERE fileId = :fileId")
     fun updateScreenshotData(fileId: Long, screenshotData: String)
 
@@ -70,11 +69,11 @@ interface FileDAO {
     fun getFileWithPerformers(fileId: Long): List<FileDetailsWithPerformers>
 
 
-    @Query("""SELECT file_meta.fileId, file_meta.file_name FROM file_meta
+    @Query("""SELECT file_meta.fileId, file_meta.file_name, file_meta.file_uri, file_meta.file_size_bytes FROM file_meta
             INNER JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
             WHERE video_actress_cross_ref.actressId=:performerId
             ORDER BY file_meta.fileId DESC LIMIT :pageSize OFFSET :offset""")
-    fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<SimplifiedFileMeta>
+    fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<FileMeta>
 }
 
 data class Item(

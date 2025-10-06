@@ -30,35 +30,20 @@ import androidx.compose.ui.Alignment
 import com.example.serverapp.ui.homeview.BackendServer
 import com.example.serverapp.ui.homeview.FrontEndServer
 import com.example.serverapp.ui.homeview.Info
-import com.example.serverapp.ui.homeview.Select
 import com.example.serverapp.viewmodel.MainActivityViewModel
-import helpers.FileHandlerHelper
 import androidx.core.net.toUri
 import com.example.serverapp.ui.homeview.DatabaseManagement
 import com.example.serverapp.ui.homeview.RequestPermission
+import helpers.SharedPreferencesHelper
 
 
 class MainActivity : ComponentActivity() {
 
 
-    private val fileHandlerHelper by lazy { FileHandlerHelper(this) }
     private val SERVER_START_ACTION_NAME="SERVER_START"
     private val SERVER_STOP_ACTION_NAME="SERVER_STOP"
     private val mainActivityViewModel: MainActivityViewModel by viewModels()
-
-    private val requestPermissionLauncherSDCard = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            mainActivityViewModel.saveSDCardUri(uri)
-    }}
-
-    private val requestPermissionLauncherInternal = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null) {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            mainActivityViewModel.saveInternalUri(uri)
-        }
-    }
-
+    private lateinit var preferencesHelper: SharedPreferencesHelper
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,7 +57,8 @@ class MainActivity : ComponentActivity() {
         } else {
             registerReceiver(receiver, serverIntentFilter)
         }
-
+        preferencesHelper= SharedPreferencesHelper(this)
+        preferencesHelper.setupFolders()
         setContent {
             ServerAppTheme {
                 Surface(
@@ -94,7 +80,6 @@ class MainActivity : ComponentActivity() {
                                 Info(mainActivityViewModel)
                                 FrontEndServer(mainActivityViewModel)
                                 BackendServer(mainActivityViewModel,::startServer,::stopServer)
-                                Select(mainActivityViewModel,requestPermissionLauncherSDCard,requestPermissionLauncherInternal, fileHandlerHelper)
                                 DatabaseManagement(mainActivityViewModel,::exportDatabase, importDbLauncher)
                             }
                     }

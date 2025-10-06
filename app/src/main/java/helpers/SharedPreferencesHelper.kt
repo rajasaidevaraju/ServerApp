@@ -2,6 +2,10 @@ package helpers
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import androidx.core.net.toUri
+import androidx.core.content.edit
+import java.io.File
 
 class SharedPreferencesHelper(private val context: Context) {
 
@@ -11,13 +15,14 @@ class SharedPreferencesHelper(private val context: Context) {
     private val frontEndKey="front_end_url"
     private val backEndKey="back_end_url"
     private val uiServerModeKey="ui_server_mode"
+    private val fileHandlerHelper: FileHandlerHelper = FileHandlerHelper(context)
     val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
     private fun getURI(uriKey:String):Uri?{
         val selectedFolderUriString = sharedPrefs.getString(uriKey, null)
 
         if (selectedFolderUriString != null) {
-            val selectedFolderUri = Uri.parse(selectedFolderUriString)
+            val selectedFolderUri = selectedFolderUriString.toUri()
             return selectedFolderUri
         } else {
             return null
@@ -33,21 +38,28 @@ class SharedPreferencesHelper(private val context: Context) {
         return getURI(uriKeyInternal)
     }
 
-    fun storeSDCardURI(selectedFolderUri:Uri){
-        storeURI(selectedFolderUri,uriKeySDCard)
-    }
-
-    fun storeInternalURI(selectedFolderUri:Uri){
-        storeURI(selectedFolderUri,uriKeyInternal)
-    }
-
-    private fun storeURI(selectedFolderUri:Uri, uriKey:String){
-
+    fun setupFolders(){
         val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-        val editor = sharedPrefs.edit()
-
-        editor.putString(uriKey, selectedFolderUri.toString())
-        editor.apply()
+        val internalFolder = File(Environment.getExternalStorageDirectory(), ".int")
+        if (!internalFolder.exists()) {
+            internalFolder.mkdir()
+        }
+        val internalUri = Uri.fromFile(internalFolder)
+        var sdUri:Uri?=null
+        val sdCardRoot = fileHandlerHelper.getExternalSdCardPath()
+        if(sdCardRoot!=null){
+            val sdFolder = File(sdCardRoot, ".and")
+            if (!sdFolder.exists()) {
+                sdFolder.mkdir()
+            }
+            sdUri = Uri.fromFile(sdFolder)
+        }
+        sharedPrefs.edit {
+            putString(uriKeyInternal, internalUri.toString())
+            if(sdUri!=null){
+                putString(uriKeySDCard, sdUri.toString())
+            }
+        }
     }
 
 
@@ -56,18 +68,18 @@ class SharedPreferencesHelper(private val context: Context) {
     }
     fun storeFrontEndUrl(enteredFrontEndUrl:String?){
         val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-        val editor = sharedPrefs.edit()
-        editor.putString(frontEndKey, enteredFrontEndUrl)
-        editor.apply()
+        sharedPrefs.edit {
+            putString(frontEndKey, enteredFrontEndUrl)
+        }
     }
     fun getBackEndUrl(): String? {
         return sharedPrefs.getString(backEndKey, null)
     }
     fun storeBackEndUrl(enteredFrontEndUrl:String?){
         val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-        val editor = sharedPrefs.edit()
-        editor.putString(backEndKey, enteredFrontEndUrl)
-        editor.apply()
+        sharedPrefs.edit {
+            putString(backEndKey, enteredFrontEndUrl)
+        }
     }
 
     fun getUIServerMode():Boolean{
@@ -76,8 +88,8 @@ class SharedPreferencesHelper(private val context: Context) {
 
     fun storeUIServerMode(uiServerMode:Boolean){
         val sharedPrefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-        val editor = sharedPrefs.edit()
-        editor.putBoolean(uiServerModeKey, uiServerMode)
-        editor.apply()
+        sharedPrefs.edit {
+            putBoolean(uiServerModeKey, uiServerMode)
+        }
     }
 }

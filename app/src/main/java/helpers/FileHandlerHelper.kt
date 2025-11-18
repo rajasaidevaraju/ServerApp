@@ -93,7 +93,8 @@ class FileHandlerHelper(private val context: Context){
                     queue.add(file)
                 } else {
                     if (isValidVideoFileName(name)) {
-                        fileMetas.add(FileMeta(fileName = name, fileUri = uri))
+                        val size=file.length()
+                        fileMetas.add(FileMeta(fileName = name, fileUri = uri, fileSize = size))
                     }
                 }
             }

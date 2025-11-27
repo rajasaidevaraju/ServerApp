@@ -7,7 +7,9 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Update
+import androidx.sqlite.db.SupportSQLiteQuery
 import database.entity.Actress
 
 @Dao
@@ -77,6 +79,12 @@ interface FileDAO {
             WHERE video_actress_cross_ref.actressId=:performerId
             ORDER BY file_meta.fileId DESC LIMIT :pageSize OFFSET :offset""")
     fun getFilesWithPerformerPaginated(offset:Int, pageSize:Int,performerId:Long):List<FileMetaSimple>
+
+    @RawQuery(observedEntities = [FileMeta::class])
+    fun getFilesSorted(query: SupportSQLiteQuery): List<FileMetaSimple>
+
+    @RawQuery(observedEntities = [FileMeta::class])
+    fun getFilesSortedForPerformer(query: SupportSQLiteQuery): List<FileMetaSimple>
 }
 
 data class Item(

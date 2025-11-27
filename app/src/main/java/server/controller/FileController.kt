@@ -2,6 +2,7 @@ package server.controller
 
 import android.content.Context
 import android.net.Uri
+import androidx.sqlite.db.SimpleSQLiteQuery
 import database.AppDatabase
 import database.dao.FileMetaSimple
 import database.entity.FileMeta
@@ -73,28 +74,54 @@ class FileController(private val context: Context,
         val params = session.parameters
         val page = params["page"]?.firstOrNull()
         val performerId=params["performerId"]?.firstOrNull()?.toLongOrNull()
+        val sortBy=params["sortBy"]?.firstOrNull()?: "latest"
         var pageNo = 1
         val pageSize = 18
+
         if (!page.isNullOrBlank()) {
             pageNo = page.toIntOrNull() ?: 1
         }
         val offset = (pageNo - 1) * pageSize
 
-        val paginatedFileData:List<FileMetaSimple>
-        if(performerId==null){
-            paginatedFileData=fileDao.getFilesPaginated(offset, pageSize)
-        }else{
-            val actress=database.actressDao().getActressById(performerId)
-            if(actress==null){
-                return notFound("performer with id $performerId not found")
-            }
-            paginatedFileData=fileDao.getFilesWithPerformerPaginated(offset, pageSize,performerId)
+        val orderClause = when (sortBy.lowercase()) {
+            "latest" -> "ORDER BY file_meta.fileId DESC"
+            "oldest" -> "ORDER BY file_meta.fileId ASC"
+            "size-asc" -> "ORDER BY file_meta.file_size_bytes ASC"
+            "size-desc" -> "ORDER BY file_meta.file_size_bytes DESC"
+            "name-asc" -> "ORDER BY file_meta.file_name COLLATE NOCASE ASC"
+            "name-desc" -> "ORDER BY file_meta.file_name COLLATE NOCASE DESC"
+            else -> "ORDER BY file_meta.fileId DESC"
         }
-        val totalFiles:Int = if(performerId==null) {
+
+        val baseQuery: String = if (performerId == null) {
+            """
+            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize
+            FROM file_meta
+            $orderClause
+            LIMIT $pageSize OFFSET $offset
+        """
+        } else {
+            """
+            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize
+            FROM file_meta
+            JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
+            WHERE video_actress_cross_ref.actressId = $performerId
+            $orderClause
+            LIMIT $pageSize OFFSET $offset
+        """
+        }
+
+        val query = SimpleSQLiteQuery(baseQuery)
+
+        val paginatedFileData = if (performerId == null)
+            fileDao.getFilesSorted(query)
+        else
+            fileDao.getFilesSortedForPerformer(query)
+
+        val totalFiles = if (performerId == null)
             fileDao.getTotalFileCount()
-        } else{
+        else
             database.videoActressCrossRefDao().getVideosForActress(performerId).size
-        }
 
         if (paginatedFileData.isEmpty()) {
             return notFound("No files found")
@@ -107,7 +134,7 @@ class FileController(private val context: Context,
                 "total" to totalFiles
             )
         )
-        val jsonContent: String = gson.toJson(responseContent)
+        val jsonContent = gson.toJson(responseContent)
         return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
     }
 

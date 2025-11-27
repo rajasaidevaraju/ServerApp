@@ -118,9 +118,12 @@ class FileController(private val context: Context,
         if (fileIdStr.isNullOrBlank()) {
             return badRequest("Missing required parameter: fileId")
         }
+        val isDownloadRequested=params["download"]?.firstOrNull()
+        val downloadFlag=isDownloadRequested== "true";
+
         return try {
             val fileId = fileIdStr.toLong()
-            fileService.streamFile(fileId, context, session.headers)
+            fileService.streamFile(fileId, session.headers,downloadFlag)
         } catch (exception: Exception) {
             internalServerError(exception,"Invalid File ID")
         }

@@ -251,7 +251,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
         return ServiceResult(true, "File renamed successfully")
     }
-    fun streamFile(fileId: Long, context: Context, headers: Map<String, String>): NanoHTTPD.Response {
+    fun streamFile(fileId: Long,headers: Map<String, String>,downloadFlag:Boolean): NanoHTTPD.Response {
 
         val fileMeta = fileDao.getFileById(fileId)
         val filePath=fileMeta?.fileUri?.path
@@ -275,9 +275,9 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             val rangeHeader = headers["range"]
 
             return if (rangeHeader != null && rangeHeader.startsWith("bytes=") ) {
-                getPartialResponse(file, rangeHeader, fileLength, context)
+                getPartialResponse(file, rangeHeader, fileLength,downloadFlag,fileMeta.fileName)
             }else{
-                getFullResponse(file, context)
+                getFullResponse(file,downloadFlag)
             }
 
         } catch (e: Exception) {
@@ -288,7 +288,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getFullResponse(file: File,context:Context): NanoHTTPD.Response {
+    private fun getFullResponse(file: File,downloadFlag: Boolean): NanoHTTPD.Response {
         try {
             val inputStream = FileInputStream(file)
             val fileSize = file.length()
@@ -299,6 +299,10 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             )
             response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", fileSize.toString())
+            if (downloadFlag) {
+                val dispositionValue = "attachment; filename=\"${file.name}\""
+                response.addHeader("Content-Disposition", dispositionValue)
+            }
             return response
         }catch (e: Exception) {
             // Handle exceptions or errors while accessing the file
@@ -312,7 +316,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, context:Context): NanoHTTPD.Response {
+    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, downloadFlag:Boolean, fileName: String): NanoHTTPD.Response {
 
         try {
             val fileInputStream = FileInputStream(file)
@@ -343,6 +347,10 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             response.addHeader("Accept-Ranges", "bytes")
             response.addHeader("Content-Length", contentLength.toString())
             response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
+            if (downloadFlag) {
+                val dispositionValue = "attachment; filename=\"${file.name}\""
+                response.addHeader("Content-Disposition", dispositionValue)
+            }
             return response
 
         } catch (e: Exception) {

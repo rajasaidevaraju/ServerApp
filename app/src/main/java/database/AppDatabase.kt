@@ -22,7 +22,7 @@ import database.jointable.VideoCategoryCrossRef
 
 @Database(
     entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class],
-    version = 6,exportSchema = false
+    version = 7,exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDAO
@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
                 INSTANCE = instance
                 return instance
             }
@@ -127,9 +127,11 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-
-
-
+        private val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE file_meta ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
     }
 }

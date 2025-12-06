@@ -20,4 +20,7 @@ interface VideoActressCrossRefDAO {
 
     @Delete
     fun deleteVideoActressCrossRef(videoActressCrossRef: VideoActressCrossRef)
+
+    @Query("DELETE FROM video_actress_cross_ref WHERE fileId = :fileId AND actressId = :performerId")
+    fun deleteVideoActressCrossRefByIDs(fileId: Long, performerId: Long): Int
 }

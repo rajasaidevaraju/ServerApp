@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.sqlite.db.SimpleSQLiteQuery
 import database.AppDatabase
-import database.dao.FileMetaSimple
 import database.entity.FileMeta
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
@@ -63,9 +62,10 @@ class FileController(private val context: Context,
     }
 
     private fun handleDeleteRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when (url) {
-            "/file" -> deleteFile(session)
-            "/cleanup" -> cleanupDatabase()
+        return when {
+            isRemovePerformerFromFilePath(url) -> removePerformerFromFile(url)
+            url == "/file" -> deleteFile(session)
+            url == "/cleanup" -> cleanupDatabase()
             else -> notFound()
         }
     }
@@ -95,14 +95,14 @@ class FileController(private val context: Context,
 
         val baseQuery: String = if (performerId == null) {
             """
-            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize
+            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
             FROM file_meta
             $orderClause
             LIMIT $pageSize OFFSET $offset
         """
         } else {
             """
-            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize
+            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
             FROM file_meta
             JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
             WHERE video_actress_cross_ref.actressId = $performerId
@@ -411,6 +411,7 @@ class FileController(private val context: Context,
             }
             val result=fileService.repairPath(internalURI, sdCardURI)
             fileService.syncFileSizesWithStorage()
+            fileService.populateMissingDurations()
             return okRequest(result.message)
         } catch (e: Exception) {
             return internalServerError(e,"Repair operation failed")
@@ -473,6 +474,33 @@ class FileController(private val context: Context,
         return if(result.success){
             okRequest(result.message)
         }else{
+            badRequest(result.message)
+        }
+    }
+    private fun isRemovePerformerFromFilePath(url:String): Boolean{
+        val regex = Regex("^/file/(\\d+)/performer/(\\d+)$")
+        val match = regex.matchEntire(url)
+        return match != null
+    }
+    private fun removePerformerFromFile(url: String): NanoHTTPD.Response {
+
+        // URL pattern is /file/{fileId}/performer/{performerId}
+        val uri = url.split("/")
+        val length=uri.size
+        val fileId = uri.getOrNull(length-3)?.toLongOrNull()
+        val performerId = uri.getOrNull(length-1)?.toLongOrNull()
+        if (fileId == null) {
+            return badRequest("Missing or invalid file ID in URL.")
+        }
+        if (performerId == null) {
+            return badRequest("Missing or invalid performerId query parameter.")
+        }
+
+        val result = fileService.removePerformerFromFile(fileId, performerId)
+
+        return if (result.success) {
+            okRequest(result.message)
+        } else {
             badRequest(result.message)
         }
     }

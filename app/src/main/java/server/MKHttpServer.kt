@@ -1,6 +1,7 @@
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.BatteryManager
 import android.util.Log
@@ -21,6 +22,7 @@ import server.service.FileService
 import server.service.UserService
 import server.service.NetworkService
 import server.service.SessionManager
+import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.DatagramPacket

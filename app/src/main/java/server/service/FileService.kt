@@ -1,6 +1,7 @@
 package server.service
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
@@ -133,6 +134,16 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         return ServiceResult(success = true, message = "Performer added successfully")
     }
 
+    fun removePerformerFromFile(fileId: Long, performerId: Long): ServiceResult {
+
+        val rowsDeleted = database.videoActressCrossRefDao().deleteVideoActressCrossRefByIDs(fileId, performerId)
+
+        if (rowsDeleted == 0) {
+            return ServiceResult(success = false, message = "Performer association not found or deletion failed")
+        }
+        return ServiceResult(success = true, message = "Performer removed successfully")
+    }
+
     fun repairPath(internalURI:Uri, sdCardURI:Uri?):ServiceResult{
 
         val fileMetaMap=mutableMapOf<String, FileMeta>()
@@ -188,6 +199,21 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
                         fileDao.updateFileSize(file.fileId,size)
                     }
                 }
+            }
+        }
+    }
+
+    fun populateMissingDurations(){
+        val filesWithoutDuration=fileDao.getFilesMissingDurationSimple()
+        for(fileData in filesWithoutDuration){
+            val path=fileData.fileUri.path
+            if(path==null){
+                continue
+            }
+            val file=File(path)
+            if(file.exists()){
+                val duration=getMediaDuration(file)
+                fileDao.updateFileDuration(fileData.fileId,duration)
             }
         }
     }
@@ -359,6 +385,19 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             val responseContent = mapOf("message" to "Error while seeking for file")
             val jsonContent: String = gson.toJson(responseContent)
             return newFixedLengthResponse(Status.INTERNAL_ERROR, "application/json",jsonContent )
+        }
+    }
+
+    private fun getMediaDuration(file: File): Long {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            val time = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            return time?.toLong() ?: 0L
+        } catch (e: Exception) {
+            return 0L
+        } finally {
+            retriever.release()
         }
     }
 }

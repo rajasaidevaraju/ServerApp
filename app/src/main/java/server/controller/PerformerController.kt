@@ -30,6 +30,11 @@ class PerformerController(
     private fun handleGetRequest(url: String, session: IHTTPSession): Response {
         when (url) {
             "/performers" -> {
+                val performers = database.actressDao().getAllActresses()
+                val jsonContent: String = gson.toJson(performers)
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+            }
+            "/performersWithCount" -> {
                 val performers = database.actressDao().getAllActressesWithCount()
                 val jsonContent: String = gson.toJson(performers)
                 return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)

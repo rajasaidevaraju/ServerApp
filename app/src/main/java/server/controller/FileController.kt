@@ -243,7 +243,8 @@ class FileController(private val context: Context,
             val finalFileName = destinationFile.name
             val uri=Uri.fromFile(destinationFile)
             val fileSize=destinationFile.length()
-            val fileMeta = FileMeta(fileName = finalFileName, fileUri = uri, fileSize = fileSize)
+            val durationMs=fileService.getMediaDuration(destinationFile)
+            val fileMeta = FileMeta(fileName = finalFileName, fileUri = uri, fileSize = fileSize, durationMs=durationMs)
             database.fileDao().insertFile(fileMeta)
             return okRequest("File Stored Successfully")
         } catch (exception: Exception) {

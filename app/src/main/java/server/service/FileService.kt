@@ -388,7 +388,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
     }
 
-    private fun getMediaDuration(file: File): Long {
+    fun getMediaDuration(file: File): Long {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(file.absolutePath)

@@ -106,7 +106,15 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
         for(fileMeta in fileMetasFromDirectory){
             if(!fileMetaFromDb.contains(fileMeta)){
-                newFiles.add(fileMeta)
+                val filePath = fileMeta.fileUri.path
+                if (filePath != null) {
+                    val file = File(filePath)
+                    val duration=getMediaDuration(file)
+                    val updatedFileMeta = fileMeta.copy(durationMs = duration)
+                    newFiles.add(updatedFileMeta)
+                }else{
+                    newFiles.add(fileMeta)
+                }
             }
         }
         return if (newFiles.isNotEmpty()) {

@@ -2,6 +2,7 @@ package server.controller
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.sqlite.db.SimpleSQLiteQuery
 import database.AppDatabase
 import database.entity.FileMeta
@@ -16,6 +17,7 @@ import java.io.FileOutputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
 class FileController(private val context: Context,
                      private val database: AppDatabase, private val fileService: FileService,
                      private val networkService: NetworkService,
@@ -39,16 +41,20 @@ class FileController(private val context: Context,
             url == "/file" -> getFile(session)
             url == "/thumbnail" -> getThumbnail(session)
             url == "/name" -> getFileName(session)
+            url == "/file/status"  -> getChunkedUploadStatus(session)
+            url.startsWith("/file/status")  -> getChunkedUploadStatus(session)
             else -> notFound()
         }
     }
 
     private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         return when {
-            url=="/file" -> uploadFile(session)
+            url == "/file" -> uploadFile(session)
             url.startsWith("/file")&& url.endsWith("/performer") -> addPerformerToFile(url,session)
-            url=="/thumbnail" -> updateThumbnail(session)
-            url== "/scan" -> scanFolders(getSdCardURI(), getInternalURI())
+            url == "/thumbnail" -> updateThumbnail(session)
+            url == "/scan" -> scanFolders(getSdCardURI(), getInternalURI())
+            url == "/file/chunk" -> uploadChunk(session)
+            url == "/file/upload/chunk" -> uploadChunk(session)
             else -> notFound()
         }
     }
@@ -254,6 +260,7 @@ class FileController(private val context: Context,
         }
     }
 
+
     fun renameFile(url:String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val fileId=extractFileIdFromUrl(url)
         if(fileId==null){
@@ -265,7 +272,7 @@ class FileController(private val context: Context,
             return badRequest("Missing required parameter: newName")
         }
         return try {
-            val result=fileService.renameFile(fileId,newName,context)
+            val result=fileService.renameFile(fileId, newName)
             if(result.success){
                 okRequest(result.message)
             }else{
@@ -306,17 +313,15 @@ class FileController(private val context: Context,
         }
         return try {
             val fileId = fileIdStr.toLong()
-            var thumbnail = database.fileDao().getScreenshotData(fileId)
-            var exists = true
+            var thumbnail = database.fileDao().getScreenshotDataBinary(fileId)
             if (thumbnail == null) {
-                thumbnail = ""
-                exists = false
+                thumbnail = ByteArray(0)
             }
-            val responseContent = mapOf("imageData" to thumbnail, "exists" to exists)
             newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
-                MIME_JSON,
-                gson.toJson(responseContent)
+                MIME_JPEG,
+                thumbnail.inputStream(),
+                thumbnail.size.toLong()
             )
         } catch (exception: Exception) {
             internalServerError(exception,"Could not get thumbnail for id: $fileIdStr")
@@ -364,23 +369,35 @@ class FileController(private val context: Context,
         }
     }
 
-    private fun updateThumbnail(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        try {
-            val postBody = HashMap<String, String>()
-            session.parseBody(postBody)
-            val postData = postBody["postData"]
-            if (postData.isNullOrBlank()) {
-                return badRequest("Missing or empty postData")
+    private fun updateThumbnail( session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+
+        return try {
+            val files = HashMap<String, String>()
+            session.parseBody(files)
+
+            val fileIdStr = session.parameters["fileId"]?.firstOrNull() ?: return badRequest("Missing required parameter: fileId")
+            val fileId = fileIdStr.toLong()
+            val tempFilePath = files["image"] ?: return badRequest("Missing image file")
+            val imageBytes = File(tempFilePath).readBytes()
+
+            if (imageBytes.isEmpty()) {
+                return badRequest("Empty image file")
             }
-            val insertedFileId = dbService.insertScreenshotData(postData, database.fileDao())
+
+            database.fileDao().updateScreenshotBinary(fileId = fileId, binary = imageBytes)
+
             val responseContent = mapOf(
-                "message" to "Thumbnail inserted or updated for file with ID $insertedFileId",
-                "fileId" to insertedFileId
+                "message" to "Thumbnail updated successfully",
+                "fileId" to fileId
             )
-            val jsonContent: String = gson.toJson(responseContent)
-            return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
-        } catch (exception: Exception) {
-            return internalServerError(exception,"Thumbnail insert or update operation failed")
+            newFixedLengthResponse(
+                NanoHTTPD.Response.Status.OK,
+                MIME_JSON,
+                gson.toJson(responseContent)
+            )
+
+        } catch (e: Exception) {
+            internalServerError(e, "Thumbnail binary insert failed")
         }
     }
 
@@ -503,6 +520,61 @@ class FileController(private val context: Context,
             okRequest(result.message)
         } else {
             badRequest(result.message)
+        }
+    }
+
+    private fun getChunkedUploadStatus(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        return try {
+            val params = session.parameters
+            val fileName = params["fileName"]?.firstOrNull() ?: return badRequest("Missing fileName")
+            val fileSize = params["fileSize"]?.firstOrNull()?.toLongOrNull() ?: return badRequest("Missing or invalid fileSize")
+            val chunkSize = params["chunkSize"]?.firstOrNull()?.toLongOrNull() ?: return badRequest("Missing or invalid chunkSize")
+            val target = params["target"]?.firstOrNull() ?: return badRequest("Missing target")
+
+
+            val result = fileService.getChunkedUploadStatus(fileName, fileSize, chunkSize, target)
+
+            if (result.has("error") && result.getString("error") == "FILE_NAME_CONFLICT") {
+                return newFixedLengthResponse(NanoHTTPD.Response.Status.CONFLICT, MIME_JSON, result.toString())
+            } else if (result.has("error")) {
+                return newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, MIME_JSON, result.toString())
+            }
+
+            return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, result.toString())
+        } catch (e: Exception) {
+            internalServerError(e, "Status check failed")
+        }
+    }
+
+    private fun uploadChunk(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val params = session.parameters
+        val chunkIndex = params["chunkIndex"]?.firstOrNull()?.toIntOrNull() ?: return badRequest("Missing chunkIndex")
+        val fileName = params["fileName"]?.firstOrNull() ?: return badRequest("Missing fileName")
+        val fileSize = params["fileSize"]?.firstOrNull()?.toLongOrNull() ?: return badRequest("Missing fileSize")
+        val target = params["target"]?.firstOrNull() ?: return badRequest("Missing target")
+
+        val contentLength = session.headers["content-length"]?.toIntOrNull() ?: return badRequest("Missing content-length")
+
+        return try {
+            val chunkData = ByteArray(contentLength)
+            var totalRead = 0
+            val input = session.inputStream
+            while (totalRead < contentLength) {
+                val read = input.read(chunkData, totalRead, contentLength - totalRead)
+                if (read == -1) {
+                    break
+                }
+                totalRead += read
+            }
+
+            if (totalRead < contentLength) {
+                return badRequest("Incomplete chunk data. Expected $contentLength, got $totalRead")
+            }
+            
+            val result = fileService.handleChunkUpload(chunkIndex, fileName, fileSize, target, chunkData)
+            return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, result)
+        } catch (e: Exception) {
+            internalServerError(e, e.message ?: "Chunk upload failed")
         }
     }
 }

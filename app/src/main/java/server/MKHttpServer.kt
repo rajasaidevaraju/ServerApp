@@ -295,7 +295,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     private fun handlePostRequest(url: String, session: IHTTPSession): Response{
         val gson: Gson = GsonBuilder().create()
-        var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON,
+        val response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON,
             gson.toJson(mapOf("message" to "The requested resource could not be found")))
 
         when(url){
@@ -395,6 +395,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         if(serverRequest){
 
             url=url.substring(7,url.length)
+            Log.d("MKServer", "Transformed Server URL: $url")
 
             val authResponse = authenticationMiddleware(session, url)
             if(authResponse!=null){
@@ -405,8 +406,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             //Log.d("MKServer url", url)
 
             if(url.startsWith("/file") || url == "/thumbnail" || url == "/name" || url == "/scan" || url == "/cleanup"|| url == "/repair"){
-                response= fileController.handleRequest(url, session)
-                addCorsHeaders(response,session.headers["origin"])
+                response = fileController.handleRequest(url, session)
+                addCorsHeaders(response, session.headers["origin"])
                 return response
             }
 

@@ -2,7 +2,9 @@ package database
 
 import android.content.Context
 import database.dao.FileDAO
+import database.dao.UploadProgressDAO
 import database.entity.FileMeta
+import database.entity.UploadProgress
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -21,8 +23,8 @@ import database.jointable.VideoCategoryCrossRef
 
 
 @Database(
-    entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class],
-    version = 7,exportSchema = false
+    entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class, UploadProgress::class],
+    version = 9,exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDAO
@@ -31,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun videoActressCrossRefDao(): VideoActressCrossRefDAO
     abstract fun videoCategoryCrossRefDao(): VideoCategoryCrossRefDAO
     abstract fun userDao(): UserDao
+    abstract fun uploadProgressDao(): UploadProgressDAO
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -45,7 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build()
                 INSTANCE = instance
                 return instance
             }
@@ -133,5 +136,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE file_meta ADD COLUMN screenshot_binary BLOB")
+            }
+        }
+
+
+
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE upload_progress (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        file_name TEXT NOT NULL,
+                        file_uri TEXT NOT NULL,
+                        file_size INTEGER NOT NULL,
+                        chunk_size INTEGER NOT NULL,
+                        total_chunks INTEGER NOT NULL,
+                        uploaded_chunks INTEGER NOT NULL,
+                        target TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_upload_progress_file_name_target ON upload_progress(file_name, target)")
+            }
+        }
     }
 }

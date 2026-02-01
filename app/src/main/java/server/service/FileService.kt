@@ -2,18 +2,17 @@ package server.service
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.util.Log
 import android.net.Uri
-import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageVolume
-import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
 import database.dao.FileDetails
 import database.dao.Item
 import database.entity.FileMeta
+import database.entity.UploadProgress
 import database.jointable.VideoActressCrossRef
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
@@ -23,12 +22,14 @@ import helpers.SharedPreferencesHelper
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
+import kotlin.math.ceil
 
 
 class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
 
     private val mimeType = "video/mp4"
     private val fileDao=database.fileDao()
+    private val uploadProgressDao = database.uploadProgressDao()
 
     fun parsePostData(postData: String?, paramName: String): String? {
         if (postData == null) {
@@ -252,14 +253,11 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
     }
 
-    fun renameFile(fileId:Long ,newName: String, context: Context):ServiceResult{
+    fun renameFile(fileId:Long ,newName: String):ServiceResult{
         if (!fileHandlerHelper.isValidFilename(newName)) {
             return ServiceResult(false,"Invalid filename provided")
         }
-        val fileMeta = fileDao.getFileById(fileId)
-        if(fileMeta==null){
-            return ServiceResult(false,"File with id $fileId not found")
-        }
+        val fileMeta = fileDao.getFileById(fileId) ?: return ServiceResult(false, "File with id $fileId not found")
         val oldName=fileMeta.fileName
         val dotIndex=oldName.lastIndexOf('.')
         val extension=if(dotIndex!=-1) oldName.substring(dotIndex) else ""
@@ -285,7 +283,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
         return ServiceResult(true, "File renamed successfully")
     }
-    fun streamFile(fileId: Long,headers: Map<String, String>,downloadFlag:Boolean): NanoHTTPD.Response {
+    fun streamFile(fileId: Long,headers: Map<String, String> ,downloadFlag:Boolean): NanoHTTPD.Response {
 
         val fileMeta = fileDao.getFileById(fileId)
         val filePath=fileMeta?.fileUri?.path
@@ -309,7 +307,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             val rangeHeader = headers["range"]
 
             return if (rangeHeader != null && rangeHeader.startsWith("bytes=") ) {
-                getPartialResponse(file, rangeHeader, fileLength,downloadFlag,fileMeta.fileName)
+                getPartialResponse(file, rangeHeader, fileLength, downloadFlag)
             }else{
                 getFullResponse(file,downloadFlag)
             }
@@ -350,7 +348,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, downloadFlag:Boolean, fileName: String): NanoHTTPD.Response {
+    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, downloadFlag:Boolean): NanoHTTPD.Response {
 
         try {
             val fileInputStream = FileInputStream(file)
@@ -402,10 +400,143 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             retriever.setDataSource(file.absolutePath)
             val time = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             return time?.toLong() ?: 0L
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return 0L
         } finally {
             retriever.release()
+        }
+    }
+
+    fun getChunkedUploadStatus(fileName: String, fileSize: Long, chunkSize: Long, target: String): JSONObject {
+        val normalizedTarget = target.lowercase()
+        val existingFile = fileDao.isFileNamePresent(fileName)
+        if (existingFile) {
+            Log.d("FileService", "getChunkedUploadStatus: FILE_NAME_CONFLICT for $fileName")
+            val response = JSONObject()
+            response.put("fileExists", true)
+            response.put("error", "FILE_NAME_CONFLICT")
+            response.put("message", "A file with the same name already exists.")
+            response.put("fileName", fileName)
+            response.put("status", "COMPLETED")
+            response.put("action", "RENAME_REQUIRED")
+            return response
+        }
+
+        val progress = uploadProgressDao.getByFileNameAndTarget(fileName, normalizedTarget)
+        if (progress != null) {
+            if (progress.fileSize != fileSize) {
+                Log.e("FileService", "getChunkedUploadStatus: FILE_SIZE_MISMATCH for $fileName. Expected $fileSize, found ${progress.fileSize}")
+                val response = JSONObject()
+                response.put("fileExists", true)
+                response.put("error", "FILE_SIZE_MISMATCH")
+                response.put("message", "A file with the same name but different size exists in upload queue.")
+                response.put("fileName", fileName)
+                response.put("status", "CONFLICT")
+                response.put("action", "RENAME_REQUIRED")
+                return response
+            }
+
+            val response = JSONObject()
+            response.put("fileExists", true)
+            response.put("chunkSize", progress.chunkSize)
+            response.put("totalChunks", progress.totalChunks)
+            response.put("uploadedChunks", progress.uploadedChunks)
+            response.put("nextChunkIndex", progress.uploadedChunks)
+            response.put("status", progress.status)
+            return response
+        } else {
+            val rootUri = if (normalizedTarget == "internal") {
+                prefHandler.getInternalURI()
+            } else {
+                prefHandler.getSDCardURI()
+            } ?: run {
+                return JSONObject().put("error", "STORAGE_NOT_CONFIGURED")
+            }
+
+            val rootPath = rootUri.path ?: run {
+                return JSONObject().put("error", "PATH_NOT_FOUND")
+            }
+            val destFile = File(rootPath, fileName)
+            val fileUri = Uri.fromFile(destFile)
+
+            val totalChunks = ceil(fileSize.toDouble() / chunkSize).toInt()
+            val newProgress = UploadProgress(
+                fileName = fileName,
+                fileUri = fileUri,
+                fileSize = fileSize,
+                chunkSize = chunkSize,
+                totalChunks = totalChunks,
+                uploadedChunks = 0,
+                target = normalizedTarget,
+                status = "NEW"
+            )
+            uploadProgressDao.insert(newProgress)
+
+            val response = JSONObject()
+            response.put("fileExists", false)
+            response.put("chunkSize", chunkSize)
+            response.put("totalChunks", totalChunks)
+            response.put("uploadedChunks", 0)
+            response.put("nextChunkIndex", 0)
+            response.put("status", "NEW")
+            return response
+        }
+    }
+
+    fun handleChunkUpload( chunkIndex: Int, fileName: String, fileSize: Long, target: String, chunkData: ByteArray): String {
+        val normalizedTarget = target.lowercase()
+        val progress = uploadProgressDao.getByFileNameAndTarget(fileName, normalizedTarget)
+            ?: run {
+                throw Exception("Upload progress not found for filename: $fileName in target: $normalizedTarget")
+            }
+
+        val filePath = progress.fileUri.path ?: run {
+            throw Exception("File path not found in progress")
+        }
+        val destFile = File(filePath)
+
+        val raf = java.io.RandomAccessFile(destFile, "rw")
+        raf.seek(chunkIndex.toLong() * progress.chunkSize)
+        raf.write(chunkData)
+        raf.close()
+
+        val newUploadedChunks = chunkIndex + 1
+        progress.uploadedChunks = newUploadedChunks
+        progress.updatedAt = System.currentTimeMillis()
+
+        if (newUploadedChunks >= progress.totalChunks) {
+            progress.status = "COMPLETED"
+            uploadProgressDao.deleteByFileNameAndTarget(fileName, normalizedTarget)
+
+            val uri = Uri.fromFile(destFile)
+            val durationMs = getMediaDuration(destFile)
+            val fileMeta = FileMeta(
+                fileName = fileName,
+                fileUri = uri,
+                fileSize = fileSize,
+                durationMs = durationMs
+            )
+            fileDao.insertFile(fileMeta)
+
+            val response = JSONObject()
+            response.put("uploadedChunks", progress.totalChunks)
+            response.put("totalChunks", progress.totalChunks)
+            response.put("remainingChunks", 0)
+            response.put("percentComplete", 100)
+            response.put("status", "COMPLETED")
+            return response.toString()
+        } else {
+            progress.status = "IN_PROGRESS"
+            uploadProgressDao.update(progress)
+
+            val response = JSONObject()
+            response.put("chunkIndex", chunkIndex)
+            response.put("uploadedChunks", newUploadedChunks)
+            response.put("totalChunks", progress.totalChunks)
+            response.put("remainingChunks", progress.totalChunks - newUploadedChunks)
+            response.put("percentComplete", (newUploadedChunks.toDouble() / progress.totalChunks * 100).toInt())
+            response.put("status", "IN_PROGRESS")
+            return response.toString()
         }
     }
 }

@@ -45,8 +45,8 @@ interface FileDAO {
     @Query("SELECT * FROM file_meta WHERE fileId = :fileId")
     fun getFileById(fileId: Long): FileMeta?
 
-    @Query("SELECT screenshot_data FROM file_meta WHERE fileId = :fileId")
-    fun getScreenshotData(fileId: Long): String?
+    @Query("SELECT screenshot_binary FROM file_meta WHERE fileId = :fileId")
+    fun getScreenshotDataBinary(fileId: Long): ByteArray?
 
     @Update
     fun updateFile(fileMeta: FileMeta)
@@ -63,9 +63,8 @@ interface FileDAO {
     @Query("UPDATE file_meta SET duration_ms = :durationMs WHERE fileId = :fileId")
     fun updateFileDuration(fileId: Long, durationMs: Long): Int
 
-
-    @Query("UPDATE file_meta SET screenshot_data = :screenshotData WHERE fileId = :fileId")
-    fun updateScreenshotData(fileId: Long, screenshotData: String)
+    @Query("UPDATE file_meta SET screenshot_binary = :binary WHERE fileId = :fileId")
+    fun updateScreenshotBinary(fileId: Long, binary: ByteArray)
 
     @Delete
     fun deleteFile(fileMeta: FileMeta)

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import database.AppDatabase
+import java.io.File
 import java.io.InputStream
 import database.dao.FileDAO
 import helpers.FileHandlerHelper
@@ -23,24 +24,21 @@ class DBService(private val database: AppDatabase) {
             }
         }
 
+        val uploadProgressDAO = database.uploadProgressDao()
+        val allUploadsInProgress = uploadProgressDAO.getAllUploadProgress()
+        for (upload in allUploadsInProgress) {
+            val path = upload.fileUri.path
+            if (path != null) {
+                val file = File(path)
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+            uploadProgressDAO.delete(upload)
+            removedEntries += 1
+        }
+
         return removedEntries;
     }
 
-
-    fun insertScreenshotData(postBody:String?, fileDAO: FileDAO): Long {
-        if(postBody==null) throw IllegalArgumentException("PostBody not found")
-
-        val jsonBody = JSONObject(postBody)
-        val fileId = jsonBody.getLong("fileId")
-        val imageData = jsonBody.getString("imageData")
-
-        val fileMeta = fileDAO.getFileById(fileId)
-        if(fileMeta!=null){
-            fileDAO.updateScreenshotData(fileId, imageData)
-        }
-        else {
-            throw IllegalArgumentException("File with ID $fileId not found")
-        }
-        return fileId;
-    }
 }

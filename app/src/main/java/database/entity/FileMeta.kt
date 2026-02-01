@@ -21,6 +21,8 @@ data class FileMeta(
     var fileUri: Uri,
     @ColumnInfo(name = "screenshot_data")
     val screenshotData: String? = null,
+    @ColumnInfo(name = "screenshot_binary", typeAffinity = ColumnInfo.BLOB)
+    val screenshotBinary: ByteArray? = null,
     @ColumnInfo(name = "file_size_bytes", defaultValue = "0")
     val fileSize: Long=0L,
     @ColumnInfo(name = "duration_ms", defaultValue = "0")

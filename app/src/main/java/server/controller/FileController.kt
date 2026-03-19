@@ -52,6 +52,7 @@ class FileController(private val context: Context,
             url == "/file" -> uploadFile(session)
             url.startsWith("/file")&& url.endsWith("/performer") -> addPerformerToFile(url,session)
             url == "/thumbnail" -> updateThumbnail(session)
+            url.startsWith("/thumbnail/extract") -> extractThumbnail(session)
             url == "/scan" -> scanFolders(getSdCardURI(), getInternalURI())
             url == "/file/chunk" -> uploadChunk(session)
             url == "/file/upload/chunk" -> uploadChunk(session)
@@ -398,6 +399,35 @@ class FileController(private val context: Context,
 
         } catch (e: Exception) {
             internalServerError(e, "Thumbnail binary insert failed")
+        }
+    }
+
+    private fun extractThumbnail(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        return try {
+            val files = HashMap<String, String>()
+            session.parseBody(files)
+            
+            val params = session.parameters
+            val fileIdStr = params["fileId"]?.firstOrNull() ?: return badRequest("Missing required parameter: fileId")
+            val timestampStr = params["timestamp"]?.firstOrNull() ?: return badRequest("Missing required parameter: timestamp")
+            
+            val fileId = fileIdStr.toLong()
+            val timestamp = timestampStr.toLong()
+            
+            val result = fileService.extractAndSaveThumbnail(fileId, timestamp)
+            if (result.success) {
+                val thumbnail = database.fileDao().getScreenshotDataBinary(fileId) ?: ByteArray(0)
+                newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.OK,
+                    MIME_JPEG,
+                    thumbnail.inputStream(),
+                    thumbnail.size.toLong()
+                )
+            } else {
+                badRequest(result.message)
+            }
+        } catch (exception: Exception) {
+            internalServerError(exception, "Could not extract thumbnail")
         }
     }
 

@@ -405,7 +405,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
             //Log.d("MKServer url", url)
 
-            if(url.startsWith("/file") || url == "/thumbnail" || url == "/name" || url == "/scan" || url == "/cleanup"|| url == "/repair"){
+            if(url.startsWith("/file") || url.startsWith("/thumbnail") || url == "/name" || url == "/scan" || url == "/cleanup"|| url == "/repair"){
                 response = fileController.handleRequest(url, session)
                 addCorsHeaders(response, session.headers["origin"])
                 return response

@@ -539,4 +539,34 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             return response.toString()
         }
     }
+
+    fun extractAndSaveThumbnail(fileId: Long, timestampMs: Long): ServiceResult {
+        val fileMeta = fileDao.getFileById(fileId) ?: return ServiceResult(false, "File with id $fileId not found")
+        val filePath = fileMeta.fileUri.path ?: return ServiceResult(false, "File not found in the file system")
+        
+        val file = File(filePath)
+        if (!file.exists() || !file.isFile) {
+            return ServiceResult(false, "File not found in the file system")
+        }
+
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            // timeUs is microseconds
+            val bitmap = retriever.getFrameAtTime(timestampMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            if (bitmap != null) {
+                val stream = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 50, stream)
+                val byteArray = stream.toByteArray()
+                fileDao.updateScreenshotBinary(fileId, byteArray)
+                return ServiceResult(true, "Thumbnail extracted successfully")
+            } else {
+                return ServiceResult(false, "Failed to extract thumbnail frame")
+            }
+        } catch (e: Exception) {
+            return ServiceResult(false, "Error extracting thumbnail: ${e.message}")
+        } finally {
+            retriever.release()
+        }
+    }
 }

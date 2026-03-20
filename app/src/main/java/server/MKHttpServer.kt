@@ -116,14 +116,13 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             val timeStamp=format.format(Date())
 
             var message ="$timeStamp: Server active at: ${InetAddress.getLocalHost().hostAddress} "
-            var ipAddress=networkHandler.getIpAddress(context)
+            var ipAddress=networkHandler.getIpAddress(context) ?: "localhost"
 
-            if(ipAddress!=null){
-                if(ipAddress == "null"){
-                    ipAddress="localhost"
-                }
-                message ="$timeStamp: Server active at: $ipAddress"
+            if(ipAddress == "null"){
+                ipAddress="localhost"
             }
+            message ="$timeStamp: Server active at: $ipAddress"
+
             try{
                 val broadcastAddress = InetAddress.getByName("255.255.255.255")
                 val buffer = message.toByteArray()

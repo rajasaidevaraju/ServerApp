@@ -18,12 +18,10 @@ class NetworkHelper {
             } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
                 getMobileIpAddress()
             } else {
-                // Other types of connection, handle as needed
-                null
+                "localhost"
             }
         } else {
-            // No active network, handle as needed
-            null
+            "localhost"
         }
     }
 

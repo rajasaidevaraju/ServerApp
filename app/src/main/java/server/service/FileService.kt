@@ -324,13 +324,14 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         try {
             val inputStream = FileInputStream(file)
             val fileSize = file.length()
-            val response = NanoHTTPD.newChunkedResponse(
+            val response = NanoHTTPD.newFixedLengthResponse(
                 Status.OK,
                 mimeType,
-                inputStream
+                inputStream,
+                fileSize
             )
             response.addHeader("Accept-Ranges", "bytes")
-            response.addHeader("Content-Length", fileSize.toString())
+
             if (downloadFlag) {
                 val dispositionValue = "attachment; filename=\"${file.name}\""
                 response.addHeader("Content-Disposition", dispositionValue)
@@ -371,14 +372,15 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             }
             fileInputStream.skip(start)
             val contentLength = end - start + 1
-            val response = NanoHTTPD.newChunkedResponse(
+            val response = NanoHTTPD.newFixedLengthResponse(
                 Status.PARTIAL_CONTENT,
                 mimeType,
-                fileInputStream
+                fileInputStream,
+                contentLength
             )
             response.addHeader("Accept-Ranges", "bytes")
-            response.addHeader("Content-Length", contentLength.toString())
             response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
+
             if (downloadFlag) {
                 val dispositionValue = "attachment; filename=\"${file.name}\""
                 response.addHeader("Content-Disposition", dispositionValue)

@@ -1,5 +1,4 @@
 package com.example.serverapp.ui.homeview
-
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.Image
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,29 +40,16 @@ import com.example.serverapp.viewmodel.MainActivityViewModel
 
 @Composable
 fun Info(mainActivityViewModel: MainActivityViewModel){
-    val rowCount by mainActivityViewModel.rowCount.observeAsState(null)
-    val uiServerMode by mainActivityViewModel.uiServerMode.observeAsState(null)
+    val rowCount by mainActivityViewModel.rowCount.observeAsState(0)
     val context = LocalContext.current
 
     StyledCard {
-
         Row(verticalAlignment = Alignment.CenterVertically) {
             StyledText(text = "Total rows in database:")
             Spacer(Modifier.weight(1f))
             Text(text = "$rowCount")
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val uiServerModeText =
-                "UI requests: ${if (uiServerMode == true) "Next.JS Server" else "Static Assets"}"
-            StyledText(text = uiServerModeText)
-            Spacer(Modifier.weight(1f))
-            Switch(
-                checked = uiServerMode == true,
-                onCheckedChange = { newValue ->
-                    mainActivityViewModel.setUIServerMode(newValue)
-                }
-            )
-        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             StyledText(text = "Manage Users:")
             Spacer(Modifier.weight(1f))
@@ -76,7 +61,6 @@ fun Info(mainActivityViewModel: MainActivityViewModel){
             )
         }
     }
-
 }
 
 @Composable
@@ -99,7 +83,6 @@ fun ServerCard(
             Spacer(Modifier.weight(1f))
             CommonButton(onClick = buttonAction, buttonText = buttonText,longPressToastMessage=longPressToastMessage)
         }
-
     }
 }
 
@@ -112,11 +95,10 @@ fun FrontEndServer(mainActivityViewModel: MainActivityViewModel) {
         url = frontEndUrl,
         buttonText = "Edit Address",
         longPressToastMessage = "Modify front end address",
-        buttonAction = { ->showDialog = true  }
+        buttonAction = { showDialog = true }
     )
-    // TODO: add validation to the below input
     if(showDialog){
-        MinimalDialog( frontEndUrl = frontEndUrl,onDismissRequest = {->showDialog=false},
+        MinimalDialog( frontEndUrl = frontEndUrl,onDismissRequest = {showDialog=false},
             onSave = {frontEndUrlFromDialogBox:String->
                 mainActivityViewModel.setFrontEndUrl(frontEndUrlFromDialogBox)
             })
@@ -190,10 +172,7 @@ fun BackendServer(mainActivityViewModel: MainActivityViewModel, startServer: () 
         buttonText = if (isServerRunning) "Stop Server" else "Start Server",
         longPressToastMessage = "Toggle Server State",
         buttonAction = {
-            ->if (!isServerRunning)
-            startServer()
-        else stopServer()
-
+            if (!isServerRunning) startServer() else stopServer()
         }
     )
 }
@@ -266,7 +245,6 @@ fun DatabaseManagement(
         }
     }
 }
-
 
 @Composable
 fun ServerImage() {

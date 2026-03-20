@@ -369,10 +369,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
     override fun serve(session: IHTTPSession): Response {
 
-        val uiServerLocation=prefHandler.getFrontEndUrl()
-        val uiServerMode=prefHandler.getUIServerMode()
         val gson: Gson = GsonBuilder().create()
         var responseContent=mapOf("message" to "The requested resource could not be found")
+
         var response: Response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
 
         var url= session.uri
@@ -425,19 +424,9 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             }
         }
         else{
-            if(!uiServerMode){
-                response=staticBuiltUI(url)
-            }else{
-                if(uiServerLocation==null){
-                    responseContent=mapOf("message" to "UI Server location not configured")
-                    response=newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(responseContent))
-
-                }else{
-                    response=networkService.proxyRequestToUiServer(uiServerLocation,url,session)
-                }
-            }
-
+            response = newFixedLengthResponse(Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to "Resource not found")))
         }
+
 
 
         addCorsHeaders(response,session.headers["origin"])
@@ -474,33 +463,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         }
 
         return null
-    }
-
-    private fun staticBuiltUI(url: String): Response{
-        var filePath = url.removePrefix("/") // Remove leading slash
-        val gson=GsonBuilder().create()
-        if(filePath.isEmpty()){
-            filePath=filePath.plus("index")
-        }
-        if(!filePath.contains(".")){
-            filePath=filePath.plus(".html")
-        }
-        // Android excludes folders with underscores (_) in assets during API creation.
-        // Since Next.js doesn't support changing the default _next folder name,
-        // we rename the folder to "next" after build and reroute requests accordingly.
-        if(filePath.startsWith("_next")){
-            filePath=filePath.replaceFirst("_next","next")
-        }
-
-        val response = fileHandlerHelper.serveStaticFile(filePath)
-            ?: fileHandlerHelper.serveStaticFile("404.html")
-            ?: newFixedLengthResponse(
-                Status.NOT_FOUND,
-                MIME_JSON,
-                gson.toJson(mapOf("message" to "The requested resource could not be found"))
-            )
-
-        return response
     }
 
     private fun addCorsHeaders(response: Response,url: String?=null) {

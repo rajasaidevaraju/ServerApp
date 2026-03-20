@@ -24,7 +24,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     private val prefHandler = SharedPreferencesHelper(application)
     private val database  by lazy { AppDatabase.getDatabase(application) }
     val rowCount = MutableLiveData<Int>(0)
-    val uiServerMode = MutableLiveData<Boolean>(false)
+
     val frontEndUrl=MutableLiveData<String?>()
     val backEndUrl=MutableLiveData<String?>()
     val isServerRunning= MutableLiveData<Boolean>(false)
@@ -44,15 +44,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun loadPrefs() {
-        uiServerMode.value=prefHandler.getUIServerMode()
         frontEndUrl.value=prefHandler.getFrontEndUrl()
-    }
-
-    fun setUIServerMode(mode:Boolean){
-
-        prefHandler.storeUIServerMode(mode)
-        uiServerMode.value=mode
-
     }
 
     fun setFrontEndUrl(url:String){

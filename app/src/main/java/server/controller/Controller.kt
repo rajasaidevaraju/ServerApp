@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets
 import android.util.Log
 
 interface Controller {
-    fun handleRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response
+    fun handleRequest(url: String, session: NanoHTTPD.IHTTPSession): Response
 }
 
 
@@ -24,14 +24,14 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
     protected val gson: Gson = GsonBuilder().create()
 
     protected fun notFound(message:String= "The requested resource could not be found"): Response {
-        return newFixedLengthResponse(NanoHTTPD.Response.Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to message)))
+        return newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
     protected fun badRequest(message: String="The request could not be processed due to invalid syntax"): Response {
-        return newFixedLengthResponse(NanoHTTPD.Response.Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to message)))
+        return newFixedLengthResponse(Response.Status.BAD_REQUEST, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
 
     protected fun okRequest(message: String="Success"): Response {
-        return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, gson.toJson(mapOf("message" to message)))
+        return newFixedLengthResponse(Response.Status.OK, MIME_JSON, gson.toJson(mapOf("message" to message)))
     }
 
     protected fun insufficientStorage():Response{
@@ -95,7 +95,7 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
 
     }
 
-    protected fun internalServerError(exception: Exception?, message: String="Internal Server Error"): NanoHTTPD.Response {
+    protected fun internalServerError(exception: Exception?, message: String="Internal Server Error"): Response {
 
         val messageMap = if (exception != null) {
             Log.e("BaseController", "Internal Server Error: $message", exception)
@@ -105,7 +105,7 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
             mapOf("message" to message)
         }
 
-        return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(messageMap))
+        return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_JSON, gson.toJson(messageMap))
     }
 
     private fun getExceptionString(exception:Exception):String{

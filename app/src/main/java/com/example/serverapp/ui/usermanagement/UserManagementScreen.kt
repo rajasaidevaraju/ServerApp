@@ -5,15 +5,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.serverapp.ui.CommonButton
+import com.example.serverapp.ui.StatusPill
 import com.example.serverapp.ui.StyledError
 import kotlinx.coroutines.launch
 import com.example.serverapp.viewmodel.UserManagementViewModel
@@ -29,14 +32,30 @@ fun UserManagementScreen(viewModel: UserManagementViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(modifier = Modifier.padding(top = 50.dp),){
-            Text("Manage Users", style = MaterialTheme.typography.headlineSmall)
+        Row(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(top = 20.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Manage Users",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                val accountCount = viewModel.users.size
+                Text(
+                    text = if (accountCount == 1) "1 account" else "$accountCount accounts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(Modifier.weight(1f))
-            val buttonText=if (showCreateUserForm) "Hide Create User" else "Create New User"
-            CommonButton(buttonText,{ showCreateUserForm = !showCreateUserForm })
+            CommonButton("Create User", { showCreateUserForm = true })
         }
 
         if(showCreateUserForm){
@@ -71,49 +90,66 @@ fun CreateUserDialog(coroutineScope: CoroutineScope, viewModel: UserManagementVi
 
     Dialog(onDismissRequest = { onDismissRequest() }) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .padding(top = 10.dp, bottom = 10.dp),
-            shape = RoundedCornerShape(10.dp),
-            elevation = CardDefaults.cardElevation(2.dp)
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("Create User", style = MaterialTheme.typography.headlineSmall)
-
-                Column {
-                    OutlinedTextField(
-                        value = newUsername,
-                        onValueChange = { newUsername = it },
-                        label = { Text("Username") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if(usernameError.isNotEmpty()){
-                        StyledError(usernameError)
-                    }
-                    OutlinedTextField(
-                        value = newPassword,
-                        onValueChange = { newPassword = it },
-                        label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if(passwordError.isNotEmpty()){
-                        StyledError(passwordError)
-                    }
-
-                }
-                Row( modifier=Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton( modifier = Modifier.padding(end = 10.dp), onClick = {
+                Text(
+                    "Create User",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Add an account that can sign in to the server.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newUsername,
+                    onValueChange = { newUsername = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    isError = usernameError.isNotEmpty(),
+                    supportingText = if (usernameError.isNotEmpty()) {
+                        { Text(usernameError) }
+                    } else null,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = passwordError.isNotEmpty(),
+                    supportingText = if (passwordError.isNotEmpty()) {
+                        { Text(passwordError) }
+                    } else null,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                ) {
+                    TextButton(onClick = {
                         viewModel.resetError()
                         onDismissRequest()
                     }) { Text("Cancel") }
-                    CommonButton("Create",{ coroutineScope.launch { viewModel.createUser(newUsername, newPassword) } })
+                    Button(
+                        onClick = { coroutineScope.launch { viewModel.createUser(newUsername, newPassword) } },
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = newUsername.isNotBlank() && newPassword.isNotBlank()
+                    ) { Text("Create") }
                 }
             }
         }
@@ -134,19 +170,44 @@ fun UserItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 10.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+            .padding(vertical = 6.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(10.dp)
+                .padding(16.dp)
                 .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column {
-                Text("Username: ${user.userName}", style = MaterialTheme.typography.bodyLarge)
-                Text("Disabled: ${user.disabled}", style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = user.userName.take(1).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = user.userName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.weight(1f))
+                StatusPill(
+                    active = !user.disabled,
+                    activeText = "Active",
+                    inactiveText = "Disabled"
+                )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 
                 val toggleUserStatus = fun(){
                     if(user.disabled){
@@ -156,11 +217,19 @@ fun UserItem(
                     }
                 }
 
-                val userStatusText=if (user.disabled) "Enable Account" else "Disable Account"
+                val userStatusText=if (user.disabled) "Enable" else "Disable"
 
                 CommonButton(userStatusText,toggleUserStatus)
-                CommonButton("Delete Account",{ showDeleteAccountDialog=true })
                 CommonButton("Change Password",{ showPasswordChangeDialog = true })
+                Button(
+                    onClick = { showDeleteAccountDialog = true },
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                ) { Text("Delete") }
             }
         }
     }

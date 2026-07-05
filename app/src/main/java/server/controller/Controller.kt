@@ -51,7 +51,7 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
             lengthInBytes=contentLength.toLong();
         }
         if(lengthInBytes>1024){
-            throw Exception("Request body too large")
+            throw BadRequestException("Request body too large")
         }
         if(lengthInBytes<=0){
             return res
@@ -69,11 +69,11 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
             bytesRead = try {
                 inputStream.read(buffer, 0, readLength)
             } catch (e: java.io.IOException) {
-                throw Exception("Error reading request body", e)
+                throw BadRequestException("Error reading request body", e)
             }
 
             if (bytesRead == -1) {
-                throw Exception("Unexpected end of stream. Expected $contentLength bytes, but got $totalBytesRead")
+                throw BadRequestException("Unexpected end of stream. Expected $contentLength bytes, but got $totalBytesRead")
             }
 
             outputStream.write(buffer, 0, bytesRead)
@@ -88,7 +88,7 @@ abstract class BaseController(private val prefHandler: SharedPreferencesHelper) 
                 res[key] = value
             }
         } catch (e: org.json.JSONException) {
-            throw Exception("Invalid JSON in request body", e)
+            throw BadRequestException("Invalid JSON in request body", e)
         }
 
         return res

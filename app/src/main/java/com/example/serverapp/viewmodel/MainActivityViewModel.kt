@@ -5,12 +5,12 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
+import com.example.serverapp.ServerService
 import database.AppDatabase
 import helpers.SharedPreferencesHelper
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +34,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         loadPrefs()
+        refreshServerState()
         viewModelScope.launch {
             database.fileDao().getTotalFileCountLive()
                 .asFlow()
@@ -60,12 +61,12 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     }
 
-    fun updateBackEndUrl(){
-        backEndUrl.value= prefHandler.getBackEndUrl()
-    }
-
-    fun updateServerRunning(){
-        isServerRunning.value=prefHandler.getBackEndUrl()!=null
+    // The service's in-process flag is the source of truth: the persisted url pref
+    // can be stale if the process was killed before the service cleaned it up.
+    fun refreshServerState(){
+        val running = ServerService.isRunning
+        isServerRunning.value = running
+        backEndUrl.value = if (running) prefHandler.getBackEndUrl() else null
     }
 
     fun checkPermission() {
@@ -86,6 +87,10 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         val exportFile = File(exportDir, fileName)
 
         try {
+            // Room uses WAL journaling: recent writes live in app_database-wal, not the
+            // main file. Checkpoint first so the copied file contains everything.
+            database.openHelper.writableDatabase
+                .query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() }
             FileInputStream(databaseFile).use { input ->
                 FileOutputStream(exportFile).use { output ->
                     input.copyTo(output)
@@ -99,24 +104,30 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun importDatabase(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
-        val databasePath = getApplication<Application>().getDatabasePath("app_database").absolutePath
-        val databaseFile = File(databasePath)
+        if (ServerService.isRunning) {
+            databaseActionStatus.postValue("Stop the server before importing a backup.")
+            return@launch
+        }
+        val databaseFile = getApplication<Application>().getDatabasePath("app_database")
         val context = getApplication<Application>().applicationContext
         try {
-            val inputStream=context.contentResolver.openInputStream(uri);
+            val inputStream=context.contentResolver.openInputStream(uri)
             if(inputStream==null){
                 databaseActionStatus.postValue("No input stream from db backup file")
-            }else{
-
-                Log.d("MainActivity123","using input stream, dbPath $databasePath isfile ${databaseFile.isFile}")
-                inputStream.use {
-                    FileOutputStream(databaseFile).use { output ->
-                        it.copyTo(output)
-                    }
-                }
+                return@launch
             }
 
+            // Close open connections before replacing the file, and remove stale
+            // WAL/SHM journals that would otherwise be replayed against the new db.
             AppDatabase.resetInstance()
+            File(databaseFile.parentFile, "app_database-wal").delete()
+            File(databaseFile.parentFile, "app_database-shm").delete()
+
+            inputStream.use {
+                FileOutputStream(databaseFile).use { output ->
+                    it.copyTo(output)
+                }
+            }
 
             databaseActionStatus.postValue("Import successful! App restart recommended.")
         } catch (e: Exception) {

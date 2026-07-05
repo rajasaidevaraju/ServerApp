@@ -1,7 +1,6 @@
 package server.controller
 
 
-import android.net.Uri
 import database.AppDatabase
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.IHTTPSession
@@ -16,80 +15,59 @@ class PerformerController(
     prefHandler: SharedPreferencesHelper
 ) : BaseController(prefHandler) {
 
+    private val router = Router()
+
+    init {
+        router.get("/performers") { _, _ -> listPerformers() }
+        router.get("/performersWithCount") { _, _ -> listPerformersWithCount() }
+        router.post("/performers") { _, session -> addPerformers(session) }
+        router.post("/deletePerformers") { _, session -> deletePerformers(session) }
+        router.put("/performer/{performerId}") { params, session ->
+            editPerformer(params.longPathParam("performerId"), session)
+        }
+    }
+
     override fun handleRequest(url: String, session: IHTTPSession): Response {
-
-        return when (session.method) {
-            NanoHTTPD.Method.GET -> handleGetRequest(url, session)
-            NanoHTTPD.Method.POST -> handlePostRequest(url, session)
-            NanoHTTPD.Method.PUT -> handlePutRequest(url, session)
-            NanoHTTPD.Method.DELETE -> handleDeleteRequest(url, session)
-            else -> notFound()
+        return try {
+            router.handle(url, session) ?: notFound()
+        } catch (e: BadRequestException) {
+            badRequest(e.message ?: "The request could not be processed due to invalid syntax")
         }
     }
 
-    private fun handleGetRequest(url: String, session: IHTTPSession): Response {
-        when (url) {
-            "/performers" -> {
-                val performers = database.actressDao().getAllActresses()
-                val jsonContent: String = gson.toJson(performers)
-                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
-            }
-            "/performersWithCount" -> {
-                val performers = database.actressDao().getAllActressesWithCount()
-                val jsonContent: String = gson.toJson(performers)
-                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
-            }
-            else -> return notFound()
+    private fun listPerformers(): Response {
+        val performers = database.actressDao().getAllActresses()
+        val jsonContent: String = gson.toJson(performers)
+        return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+    }
+
+    private fun listPerformersWithCount(): Response {
+        val performers = database.actressDao().getAllActressesWithCount()
+        val jsonContent: String = gson.toJson(performers)
+        return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, MIME_JSON, jsonContent)
+    }
+
+    private fun addPerformers(session: IHTTPSession): Response {
+        val result = entityService.addEntities(EntityType.Performers, parsePostData(session))
+        return if (result.success) {
+            okRequest(result.message)
+        } else {
+            badRequest(result.message)
         }
     }
 
-    private fun handlePostRequest(url: String, session: IHTTPSession): Response {
-        val postBody = HashMap<String, String>()
-        session.parseBody(postBody)
-        val postData = postBody["postData"]
-
-        return when (url) {
-            "/performers" -> {
-                val result = entityService.addEntities(EntityType.Performers, postData)
-                if (result.success) {
-                    okRequest(result.message)
-                } else {
-                    badRequest(result.message)
-                }
-            }
-            "/deletePerformers" -> {
-                val result = entityService.deleteEntities(EntityType.Performers, postData)
-                if (result.success) {
-                    okRequest(result.message)
-                } else {
-                    badRequest(result.message)
-                }
-            }
-            else -> notFound()
+    private fun deletePerformers(session: IHTTPSession): Response {
+        val result = entityService.deleteEntities(EntityType.Performers, parsePostData(session))
+        return if (result.success) {
+            okRequest(result.message)
+        } else {
+            badRequest(result.message)
         }
     }
 
-    private fun handlePutRequest(url: String, session: IHTTPSession): Response {
-        when {
-            url.startsWith("/performer") -> {
-                val postBody = HashMap<String, String>()
-                session.parseBody(postBody)
-                val postData = postBody["postData"]
-                return editPerformer(postData,session)
-            }
-            else -> return notFound()
-        }
-    }
-
-    private fun handleDeleteRequest(url: String, session: IHTTPSession): Response {
-        return notFound()
-    }
-
-    private fun editPerformer(postData:String?,session: IHTTPSession):Response{
+    private fun editPerformer(performerId: Long, session: IHTTPSession): Response {
         try {
-            val uri = session.uri.split("/")
-            val id = uri[uri.size - 1].toLongOrNull()
-            val result = entityService.updateEntity(EntityType.Performers, postData, id)
+            val result = entityService.updateEntity(EntityType.Performers, parsePostData(session), performerId)
             return if (result.success) {
                 okRequest(result.message)
             } else {
@@ -98,5 +76,11 @@ class PerformerController(
         } catch (exception: Exception) {
             return internalServerError(exception, "Update operation failed")
         }
+    }
+
+    private fun parsePostData(session: IHTTPSession): String? {
+        val postBody = HashMap<String, String>()
+        session.parseBody(postBody)
+        return postBody["postData"]
     }
 }

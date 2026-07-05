@@ -323,20 +323,26 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     private fun getFullResponse(file: File,downloadFlag: Boolean): NanoHTTPD.Response {
         try {
             val inputStream = FileInputStream(file)
-            val fileSize = file.length()
-            val response = NanoHTTPD.newFixedLengthResponse(
-                Status.OK,
-                mimeType,
-                inputStream,
-                fileSize
-            )
-            response.addHeader("Accept-Ranges", "bytes")
+            try {
+                val fileSize = file.length()
+                val response = NanoHTTPD.newFixedLengthResponse(
+                    Status.OK,
+                    mimeType,
+                    inputStream,
+                    fileSize
+                )
+                response.addHeader("Accept-Ranges", "bytes")
 
-            if (downloadFlag) {
-                val dispositionValue = "attachment; filename=\"${file.name}\""
-                response.addHeader("Content-Disposition", dispositionValue)
+                if (downloadFlag) {
+                    val dispositionValue = "attachment; filename=\"${file.name}\""
+                    response.addHeader("Content-Disposition", dispositionValue)
+                }
+                return response
+            } catch (e: Exception) {
+                // the stream is only closed by NanoHTTPD once it is handed a response
+                inputStream.close()
+                throw e
             }
-            return response
         }catch (e: Exception) {
             // Handle exceptions or errors while accessing the file
             e.printStackTrace()
@@ -352,8 +358,6 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, downloadFlag:Boolean): NanoHTTPD.Response {
 
         try {
-            val fileInputStream = FileInputStream(file)
-
             val rangeValue = rangeHeader.trim().substring("bytes=".length)
             val start: Long
             var end: Long
@@ -370,22 +374,30 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             if (end > fileLength - 1) {
                 end = fileLength - 1
             }
-            fileInputStream.skip(start)
             val contentLength = end - start + 1
-            val response = NanoHTTPD.newFixedLengthResponse(
-                Status.PARTIAL_CONTENT,
-                mimeType,
-                fileInputStream,
-                contentLength
-            )
-            response.addHeader("Accept-Ranges", "bytes")
-            response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
 
-            if (downloadFlag) {
-                val dispositionValue = "attachment; filename=\"${file.name}\""
-                response.addHeader("Content-Disposition", dispositionValue)
+            val fileInputStream = FileInputStream(file)
+            try {
+                fileInputStream.skip(start)
+                val response = NanoHTTPD.newFixedLengthResponse(
+                    Status.PARTIAL_CONTENT,
+                    mimeType,
+                    fileInputStream,
+                    contentLength
+                )
+                response.addHeader("Accept-Ranges", "bytes")
+                response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
+
+                if (downloadFlag) {
+                    val dispositionValue = "attachment; filename=\"${file.name}\""
+                    response.addHeader("Content-Disposition", dispositionValue)
+                }
+                return response
+            } catch (e: Exception) {
+                // the stream is only closed by NanoHTTPD once it is handed a response
+                fileInputStream.close()
+                throw e
             }
-            return response
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -497,10 +509,10 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
         val destFile = File(filePath)
 
-        val raf = java.io.RandomAccessFile(destFile, "rw")
-        raf.seek(chunkIndex.toLong() * progress.chunkSize)
-        raf.write(chunkData)
-        raf.close()
+        java.io.RandomAccessFile(destFile, "rw").use { raf ->
+            raf.seek(chunkIndex.toLong() * progress.chunkSize)
+            raf.write(chunkData)
+        }
 
         val newUploadedChunks = chunkIndex + 1
         progress.uploadedChunks = newUploadedChunks

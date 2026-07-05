@@ -24,6 +24,14 @@ import java.util.Locale
 
 class ServerService: Service() {
 
+    companion object {
+        // Read by the UI to know the real service state; a killed process resets
+        // this to false, unlike the persisted back-end url pref.
+        @Volatile
+        var isRunning = false
+            private set
+    }
+
     private lateinit var serverHandler: MKHttpServer
     private val networkHandler by lazy { NetworkHelper() }
     private val prefHandler by lazy { SharedPreferencesHelper(this) }
@@ -59,6 +67,7 @@ class ServerService: Service() {
             startForegroundNotification()
             serverThread = Thread {
                 serverHandler.start()
+                isRunning = true
                 updateStoredPref()
                 startTime = SystemClock.elapsedRealtime()
                 handler.post(updateRunnable)
@@ -81,20 +90,17 @@ class ServerService: Service() {
     private fun updateStoredPref(){
         var ipAddress=networkHandler.getIpAddress(this)
         val broadcastIntent = Intent(SERVER_START_ACTION_NAME)
-        if(ipAddress!=null){
-            if(ipAddress == "null"){
-                ipAddress="localhost"
-            }
-            Log.d("MKServer Address","Server address $ipAddress:${serverHandler.listeningPort}")
-        }else{
-            Log.d("MKServer","Server live status:${serverHandler.isAlive}")
+        if(ipAddress==null || ipAddress=="null"){
+            ipAddress="localhost"
         }
+        Log.d("MKServer Address","Server address $ipAddress:${serverHandler.listeningPort}")
         prefHandler.storeBackEndUrl("$ipAddress:${serverHandler.listeningPort}")
         sendBroadcast(broadcastIntent)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         handler.removeCallbacks(updateRunnable)
         if (serverHandler.isAlive) {
             serverHandler.stop()
@@ -165,10 +171,6 @@ class ServerService: Service() {
                 String.format(Locale.US, "%02d min",minutes)
             }
         }
-    }
-
-    private fun stopServer() {
-
     }
 
 }

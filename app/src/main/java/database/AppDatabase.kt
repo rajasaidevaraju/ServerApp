@@ -55,7 +55,10 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun resetInstance() {
-            INSTANCE = null
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
         }
 
         private val MIGRATION_1_2: Migration = object : Migration(1, 2) {

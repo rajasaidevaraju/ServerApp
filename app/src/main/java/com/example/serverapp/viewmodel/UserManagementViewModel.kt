@@ -67,10 +67,13 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
 
     private fun loadUsers() {
         viewModelScope.launch {
-            users.clear()
-            withContext(Dispatchers.IO){
-                users.addAll(userDao.getAllUsers())
+            // query on IO, but mutate the snapshot state list on the main thread
+            // so observers (item list and account count) update together
+            val loadedUsers = withContext(Dispatchers.IO) {
+                userDao.getAllUsers()
             }
+            users.clear()
+            users.addAll(loadedUsers)
         }
     }
 

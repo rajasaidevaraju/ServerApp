@@ -25,55 +25,39 @@ class FileController(private val context: Context,
 ) : BaseController(prefHandler) {
 
     private val fileDao = database.fileDao()
+    private val router = Router()
+
+    init {
+        router.get("/fileDetails/{fileId}") { params, _ -> getFileDetails(params.longPathParam("fileId")) }
+        router.get("/files") { _, session -> getFiles(session) }
+        router.get("/file") { _, session -> getFile(session) }
+        router.get("/thumbnail") { _, session -> getThumbnail(session) }
+        router.get("/name") { _, session -> getFileName(session) }
+        router.get("/file/status") { _, session -> getChunkedUploadStatus(session) }
+
+        router.post("/file") { _, session -> uploadFile(session) }
+        router.post("/file/{fileId}/performer") { params, session -> addPerformerToFile(params.longPathParam("fileId"), session) }
+        router.post("/thumbnail") { _, session -> updateThumbnail(session) }
+        router.post("/thumbnail/extract") { _, session -> extractThumbnail(session) }
+        router.post("/scan") { _, _ -> scanFolders(getSdCardURI(), getInternalURI()) }
+        router.post("/file/chunk") { _, session -> uploadChunk(session) }
+        router.post("/file/upload/chunk") { _, session -> uploadChunk(session) }
+
+        router.put("/repair") { _, _ -> repairPath(getInternalURI(), getSdCardURI()) }
+        router.put("/file/{fileId}/rename") { params, session -> renameFile(params.longPathParam("fileId"), session) }
+
+        router.delete("/file/{fileId}/performer/{performerId}") { params, _ ->
+            removePerformerFromFile(params.longPathParam("fileId"), params.longPathParam("performerId"))
+        }
+        router.delete("/file") { _, session -> deleteFile(session) }
+        router.delete("/cleanup") { _, _ -> cleanupDatabase() }
+    }
+
     override fun handleRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when (session.method) {
-            NanoHTTPD.Method.GET -> handleGetRequest(url, session)
-            NanoHTTPD.Method.POST -> handlePostRequest(url, session)
-            NanoHTTPD.Method.PUT -> handlePutRequest(url, session)
-            NanoHTTPD.Method.DELETE -> handleDeleteRequest(url, session)
-            else -> notFound()
-        }
-    }
-    private fun handleGetRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when {
-            url.startsWith("/fileDetails") -> getFileDetails(url)
-            url == "/files" -> getFiles(session)
-            url == "/file" -> getFile(session)
-            url == "/thumbnail" -> getThumbnail(session)
-            url == "/name" -> getFileName(session)
-            url == "/file/status"  -> getChunkedUploadStatus(session)
-            url.startsWith("/file/status")  -> getChunkedUploadStatus(session)
-            else -> notFound()
-        }
-    }
-
-    private fun handlePostRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when {
-            url == "/file" -> uploadFile(session)
-            url.startsWith("/file")&& url.endsWith("/performer") -> addPerformerToFile(url,session)
-            url == "/thumbnail" -> updateThumbnail(session)
-            url.startsWith("/thumbnail/extract") -> extractThumbnail(session)
-            url == "/scan" -> scanFolders(getSdCardURI(), getInternalURI())
-            url == "/file/chunk" -> uploadChunk(session)
-            url == "/file/upload/chunk" -> uploadChunk(session)
-            else -> notFound()
-        }
-    }
-
-    private fun handlePutRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when {
-            url=="/repair" -> repairPath(getInternalURI(),getSdCardURI())
-            isRenameUrl(url)-> renameFile(url,session)
-            else -> notFound()
-        }
-    }
-
-    private fun handleDeleteRequest(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        return when {
-            isRemovePerformerFromFilePath(url) -> removePerformerFromFile(url)
-            url == "/file" -> deleteFile(session)
-            url == "/cleanup" -> cleanupDatabase()
-            else -> notFound()
+        return try {
+            router.handle(url, session) ?: notFound()
+        } catch (e: BadRequestException) {
+            badRequest(e.message ?: "The request could not be processed due to invalid syntax")
         }
     }
 
@@ -100,25 +84,30 @@ class FileController(private val context: Context,
             else -> "ORDER BY file_meta.fileId DESC"
         }
 
-        val baseQuery: String = if (performerId == null) {
-            """
-            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
-            FROM file_meta
-            $orderClause
-            LIMIT $pageSize OFFSET $offset
-        """
+        // orderClause is safe to interpolate: it comes from the whitelist above
+        val query = if (performerId == null) {
+            SimpleSQLiteQuery(
+                """
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                FROM file_meta
+                $orderClause
+                LIMIT ? OFFSET ?
+                """,
+                arrayOf<Any>(pageSize, offset)
+            )
         } else {
-            """
-            SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
-            FROM file_meta
-            JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
-            WHERE video_actress_cross_ref.actressId = $performerId
-            $orderClause
-            LIMIT $pageSize OFFSET $offset
-        """
+            SimpleSQLiteQuery(
+                """
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                FROM file_meta
+                JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
+                WHERE video_actress_cross_ref.actressId = ?
+                $orderClause
+                LIMIT ? OFFSET ?
+                """,
+                arrayOf<Any>(performerId, pageSize, offset)
+            )
         }
-
-        val query = SimpleSQLiteQuery(baseQuery)
 
         val paginatedFileData = if (performerId == null)
             fileDao.getFilesSorted(query)
@@ -222,17 +211,17 @@ class FileController(private val context: Context,
                 return badRequest("No Boundary in headers")
             }
             val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS").withZone(ZoneId.of("UTC"))
-            val fileName = "defaultFIleName${formatter.format(Instant.now())}.mp4"
+            val fileName = "defaultFileName${formatter.format(Instant.now())}.mp4"
             destinationFile = File(destinationDir,fileName)
             val destinationFileURI = Uri.fromFile(destinationFile)
             val created=destinationFile.createNewFile()
             if (!created || destinationFileURI == null) {
                 return internalServerError(null, "File creation failed")
             }
-            val destinationOutputStream = FileOutputStream(destinationFile)
-
-            val originalFileName = networkService.processMultipartFormData(
-                session.inputStream, boundary, destinationOutputStream, contentLength)
+            val originalFileName = FileOutputStream(destinationFile).use { destinationOutputStream ->
+                networkService.processMultipartFormData(
+                    session.inputStream, boundary, destinationOutputStream, contentLength)
+            }
 
 
             var newFile = File(destinationDir, originalFileName)
@@ -262,11 +251,7 @@ class FileController(private val context: Context,
     }
 
 
-    fun renameFile(url:String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
-        val fileId=extractFileIdFromUrl(url)
-        if(fileId==null){
-            return badRequest("Invalid URL")
-        }
+    fun renameFile(fileId: Long, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val postBody=parseSmallRequestBody(session)
         val newName=postBody["newName"]
         if(newName.isNullOrBlank()){
@@ -283,19 +268,6 @@ class FileController(private val context: Context,
             internalServerError(exception,"Could not rename file")
         }
     }
-
-    fun isRenameUrl(url: String): Boolean {
-        val regex = """/file/\d+/rename""".toRegex()
-        return regex.matches(url)
-    }
-
-    fun extractFileIdFromUrl(url: String): Long? {
-        val regex = """/file/(\d+)/rename""".toRegex()
-        val matchResult = regex.find(url)
-
-        return matchResult?.groupValues?.get(1)?.toLongOrNull()
-    }
-
 
     private fun extractBoundary(headers:Map<String, String>):String?{
         val contentType= headers["content-type"]
@@ -354,10 +326,8 @@ class FileController(private val context: Context,
         }
     }
 
-    private fun getFileDetails(url: String): NanoHTTPD.Response{
+    private fun getFileDetails(fileId: Long): NanoHTTPD.Response{
         return try {
-            val uri = url.split("/")
-            val fileId =uri[uri.size-1].toLongOrNull()
             val result=fileService.getFileDetails(fileId)
             if(result.success){
                 newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, result.message)
@@ -510,13 +480,10 @@ class FileController(private val context: Context,
         return newFixedLengthResponse(NanoHTTPD.Response.Status.OK, MIME_JSON, jsonContent)
     }
 
-    //example url POST /server/file/{fileId}/performers
-    private fun addPerformerToFile(url: String, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+    private fun addPerformerToFile(fileId: Long, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val postBody=HashMap<String,String>()
         session.parseBody(postBody)
         val postData=postBody["postData"]
-        val uri = url.split("/")
-        val fileId =uri[uri.size-2].toLongOrNull()
         val result=fileService.addPerformerToFile(postData,fileId)
 
         return if(result.success){
@@ -525,25 +492,8 @@ class FileController(private val context: Context,
             badRequest(result.message)
         }
     }
-    private fun isRemovePerformerFromFilePath(url:String): Boolean{
-        val regex = Regex("^/file/(\\d+)/performer/(\\d+)$")
-        val match = regex.matchEntire(url)
-        return match != null
-    }
-    private fun removePerformerFromFile(url: String): NanoHTTPD.Response {
 
-        // URL pattern is /file/{fileId}/performer/{performerId}
-        val uri = url.split("/")
-        val length=uri.size
-        val fileId = uri.getOrNull(length-3)?.toLongOrNull()
-        val performerId = uri.getOrNull(length-1)?.toLongOrNull()
-        if (fileId == null) {
-            return badRequest("Missing or invalid file ID in URL.")
-        }
-        if (performerId == null) {
-            return badRequest("Missing or invalid performerId query parameter.")
-        }
-
+    private fun removePerformerFromFile(fileId: Long, performerId: Long): NanoHTTPD.Response {
         val result = fileService.removePerformerFromFile(fileId, performerId)
 
         return if (result.success) {

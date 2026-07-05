@@ -22,17 +22,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
-import com.example.serverapp.ui.homeview.BackendServer
-import com.example.serverapp.ui.homeview.FrontEndServer
-import com.example.serverapp.ui.homeview.Info
 import com.example.serverapp.viewmodel.MainActivityViewModel
 import androidx.core.net.toUri
-import com.example.serverapp.ui.homeview.DatabaseManagement
+import com.example.serverapp.ui.homeview.HomeScreen
 import com.example.serverapp.ui.homeview.RequestPermission
 import helpers.SharedPreferencesHelper
 
@@ -65,29 +60,36 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Column (
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(10.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    )  {
-                        val hasPermission by mainActivityViewModel.hasPermission.observeAsState(Environment.isExternalStorageManager())
-                        if (!hasPermission) {
-                                RequestPermission(::launchPermission)
-                            }else{
-                                Info(mainActivityViewModel)
-                                FrontEndServer(mainActivityViewModel)
-                                BackendServer(mainActivityViewModel,::startServer,::stopServer)
-                                DatabaseManagement(mainActivityViewModel,::exportDatabase, importDbLauncher)
-                            }
+                    val hasPermission by mainActivityViewModel.hasPermission.observeAsState(Environment.isExternalStorageManager())
+                    if (!hasPermission) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            RequestPermission(::launchPermission)
+                        }
+                    } else {
+                        HomeScreen(
+                            mainActivityViewModel = mainActivityViewModel,
+                            startServer = ::startServer,
+                            stopServer = ::stopServer,
+                            exportDbAction = ::exportDatabase,
+                            importDbLauncher = importDbLauncher
+                        )
                     }
                 }
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // The service may have started/stopped/died while the activity was away
+        mainActivityViewModel.refreshServerState()
+    }
 
     private fun startServer() {
         val serviceIntent = Intent(this, ServerService::class.java)
@@ -121,7 +123,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy()  {
         super.onDestroy()
-        stopServer()
+        // The server intentionally keeps running in the background; it is only
+        // stopped via the Stop Server button or the service notification.
         unregisterReceiver(receiver)
     }
 
@@ -129,8 +132,7 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent != null) {
                 if(intent.action == SERVER_START_ACTION_NAME|| intent.action == SERVER_STOP_ACTION_NAME){
-                    mainActivityViewModel.updateBackEndUrl()
-                    mainActivityViewModel.updateServerRunning()
+                    mainActivityViewModel.refreshServerState()
                 }
             }
         }

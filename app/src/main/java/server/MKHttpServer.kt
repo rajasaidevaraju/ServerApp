@@ -1,8 +1,6 @@
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.os.BatteryManager
 import android.util.Log
 import com.google.gson.Gson
@@ -12,7 +10,6 @@ import database.AppDatabase
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import helpers.FileHandlerHelper
-import helpers.NetworkHelper
 import helpers.SharedPreferencesHelper
 import server.controller.FileController
 import server.controller.PerformerController
@@ -22,22 +19,11 @@ import server.service.FileService
 import server.service.UserService
 import server.service.NetworkService
 import server.service.SessionManager
-import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
-import java.net.DatagramPacket
-import java.net.DatagramSocket
-import java.net.InetAddress
 import java.net.URI
-import java.text.DateFormat
-import java.time.Instant
-import java.util.Date
-import java.util.Locale
-import java.util.Timer
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.mapOf
-import kotlin.concurrent.fixedRateTimer
 
 
 enum class ExtendedStatus(val requestStatusExt: Int, val descriptionExt: String) :
@@ -68,7 +54,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private var isRunning = AtomicBoolean(false)
     private val prefHandler by lazy { SharedPreferencesHelper(context) }
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
-    private val networkHandler by lazy { NetworkHelper() }
     private val networkService by lazy { NetworkService() }
     private val sessionManager = SessionManager()
     private val userService by lazy {UserService(database,sessionManager)}
@@ -77,14 +62,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val fileController by lazy { FileController(context,database,fileService,networkService,dbService,prefHandler) }
     private val performerController by lazy { PerformerController(database, entityService,prefHandler) }
     private val MIME_JSON="application/json"
-    private val activeServers = ConcurrentHashMap<String,Instant>()
-    private val broadcastPort = 6789
-    private var listeningSocket:DatagramSocket?=null
-    private var broadcastingSocket:DatagramSocket?=null
-    private val broadcastInterval = 5000L
-    private val CLEANUP_THRESHOLD_SECONDS = 60L
-    private var broadcastTimer: Timer? = null
-    private var listeningThread: Thread? = null
     private val dbService by lazy { DBService(database) }
 
 
@@ -92,8 +69,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         if (!isRunning.get()) {
             super.start()
             isRunning.set(super.isAlive())
-            startBroadcasting()
-            startListeningForBroadcasts()
         }
     }
 
@@ -101,109 +76,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         isRunning.set(super.isAlive())
         if (isRunning.get()) {
             super.stop()
-            stopBroadcasting()
-            stopListeningForBroadcasts()
-
         }
     }
-
-    private fun startBroadcasting() {
-        broadcastingSocket = DatagramSocket()
-
-        broadcastTimer= fixedRateTimer(period = broadcastInterval,daemon=true, name = "broadcastTimer") {
-
-            val format: DateFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.US)
-            val timeStamp=format.format(Date())
-
-            var message ="$timeStamp: Server active at: ${InetAddress.getLocalHost().hostAddress} "
-            var ipAddress=networkHandler.getIpAddress(context) ?: "localhost"
-
-            if(ipAddress == "null"){
-                ipAddress="localhost"
-            }
-            message ="$timeStamp: Server active at: $ipAddress"
-
-            try{
-                val broadcastAddress = InetAddress.getByName("255.255.255.255")
-                val buffer = message.toByteArray()
-
-                if (!isRunning.get()){
-                    cancel()
-                    return@fixedRateTimer
-                }
-                val packet = DatagramPacket(buffer, buffer.size, broadcastAddress, broadcastPort)
-                broadcastingSocket?.send(packet)
-
-            }catch (e:Exception){
-                Log.e("MKServer Broadcast","Broadcasting "+getExceptionString(e))
-            }
-
-            try {
-                val cleanupCutoffTime = Instant.now().minusSeconds(CLEANUP_THRESHOLD_SECONDS)
-                val iterator = activeServers.entries.iterator()
-
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    val lastSeen = entry.value
-                    if (lastSeen.isBefore(cleanupCutoffTime)) {
-                        iterator.remove()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("MKServer Cleanup", "Error during activeServers cleanup: ${getExceptionString(e)}")
-            }
-        }
-
-    }
-
-    private fun stopBroadcasting() {
-        broadcastTimer?.cancel()
-        broadcastingSocket?.close()
-        broadcastTimer = null
-    }
-
-    private fun startListeningForBroadcasts() {
-
-        listeningSocket = DatagramSocket(broadcastPort)
-        listeningThread = Thread {
-            val buffer = ByteArray(1024)
-
-            try {
-
-                while (isRunning.get()) {
-
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    listeningSocket!!.receive(packet)
-                    val message = String(packet.data, 0, packet.length)
-                    val senderIP = packet.address.hostAddress
-                    var deviceIP = networkHandler.getIpAddress(context)
-                    if (deviceIP != null && senderIP != null) {
-                        if (deviceIP == "null") {
-                            deviceIP = "localhost"
-                        }
-                        if (message.contains("Server active at:") && senderIP != deviceIP) {
-                            activeServers[senderIP] = Instant.now()
-                        }
-                    }
-                }
-            }
-            catch (e: Exception) {
-                Log.e("MKServer Broadcast ex","listening "+getExceptionString(e))
-            }finally {
-                listeningSocket?.close()
-            }
-
-        }.apply { start() }
-    }
-
-    private fun stopListeningForBroadcasts() {
-
-        listeningSocket?.close()
-        listeningThread?.interrupt()
-        listeningThread = null
-    }
-
-
 
     private fun handleGetRequest(url: String, session: IHTTPSession): Response{
         val gson: Gson = GsonBuilder().create()
@@ -214,22 +88,6 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 val responseContent = mapOf("alive" to true)
                 val jsonContent: String = gson.toJson(responseContent)
                 response = newFixedLengthResponse(Status.OK, MIME_JSON, jsonContent)
-            }
-            "/servers"->{
-                val oneMinuteAgo = Instant.now().minusSeconds(60)
-                val list=ArrayList<String>()
-                for(server in activeServers.entries){
-                    val instant=server.value
-                    val ipAddress=server.key
-                    Log.d("ServerInfo", "Instant: $instant, IP Address: $ipAddress")
-
-                    if(instant.isAfter(oneMinuteAgo)){
-                        list.add(ipAddress)
-                    }
-
-                }
-                val responseContent = mapOf("activeServers" to list)
-                return newFixedLengthResponse(Status.OK, MIME_JSON, gson.toJson(responseContent))
             }
             "/verify"->{
                 try {

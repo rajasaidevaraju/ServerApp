@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,30 +32,71 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.serverapp.R
 import com.example.serverapp.UserManagementActivity
 import com.example.serverapp.ui.CommonButton
+import com.example.serverapp.ui.StatusPill
 import com.example.serverapp.ui.StyledCard
-import com.example.serverapp.ui.StyledText
 import com.example.serverapp.viewmodel.MainActivityViewModel
+
+@Composable
+fun HomeScreen(
+    mainActivityViewModel: MainActivityViewModel,
+    startServer: () -> Unit,
+    stopServer: () -> Unit,
+    exportDbAction: () -> Unit,
+    importDbLauncher: ActivityResultLauncher<Array<String>>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        HomeHeader()
+        BackendServer(mainActivityViewModel, startServer, stopServer)
+        FrontEndServer(mainActivityViewModel)
+        Info(mainActivityViewModel)
+        DatabaseManagement(mainActivityViewModel, exportDbAction, importDbLauncher)
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun HomeHeader() {
+    Text(
+        text = "Media Server",
+        style = MaterialTheme.typography.headlineMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp, bottom = 12.dp)
+    )
+}
 
 @Composable
 fun Info(mainActivityViewModel: MainActivityViewModel){
     val rowCount by mainActivityViewModel.rowCount.observeAsState(0)
     val context = LocalContext.current
 
-    StyledCard {
+    StyledCard(title = "Library") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StyledText(text = "Total rows in database:")
+            Text(text = "Files in database", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.weight(1f))
-            Text(text = "$rowCount")
+            Text(
+                text = "$rowCount",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
-
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StyledText(text = "Manage Users:")
+            Text(text = "User accounts", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.weight(1f))
             CommonButton(buttonText = "Manage",
                 onClick = {
@@ -64,39 +109,35 @@ fun Info(mainActivityViewModel: MainActivityViewModel){
 }
 
 @Composable
-fun ServerCard(
-    serverName: String,
-    url: String?,
-    buttonText: String,
-    longPressToastMessage: String,
-    buttonAction: () -> Unit
-) {
-    StyledCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ServerImage()
-            Spacer(Modifier.weight(1f))
-            StyledText(text = serverName)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StyledText(text = "IP: ")
-            DisplayIP(address = url)
-            Spacer(Modifier.weight(1f))
-            CommonButton(onClick = buttonAction, buttonText = buttonText,longPressToastMessage=longPressToastMessage)
-        }
-    }
-}
-
-@Composable
 fun FrontEndServer(mainActivityViewModel: MainActivityViewModel) {
     val frontEndUrl by mainActivityViewModel.frontEndUrl.observeAsState(null)
     var showDialog by remember { mutableStateOf(false) }
-    ServerCard(
-        serverName = "Front End Server",
-        url = frontEndUrl,
-        buttonText = "Edit Address",
-        longPressToastMessage = "Modify front end address",
-        buttonAction = { showDialog = true }
-    )
+
+    StyledCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ServerImage()
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "Front End Server",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = frontEndUrl ?: "Not configured",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            CommonButton(
+                buttonText = "Edit",
+                onClick = { showDialog = true },
+                longPressToastMessage = "Modify front end address"
+            )
+        }
+    }
     if(showDialog){
         MinimalDialog( frontEndUrl = frontEndUrl,onDismissRequest = {showDialog=false},
             onSave = {frontEndUrlFromDialogBox:String->
@@ -120,7 +161,7 @@ fun MinimalDialog(frontEndUrl: String?,onDismissRequest: () -> Unit, onSave: (St
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(10.dp),
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
 
             ) {
@@ -166,45 +207,50 @@ fun BackendServer(mainActivityViewModel: MainActivityViewModel, startServer: () 
                   stopServer: () -> Unit ) {
     val backEndUrl by mainActivityViewModel.backEndUrl.observeAsState(null)
     val isServerRunning by mainActivityViewModel.isServerRunning.observeAsState(false)
-    ServerCard(
-        serverName = "Back End Server",
-        url = backEndUrl,
-        buttonText = if (isServerRunning) "Stop Server" else "Start Server",
-        longPressToastMessage = "Toggle Server State",
-        buttonAction = {
-            if (!isServerRunning) startServer() else stopServer()
+
+    StyledCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ServerImage()
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "Back End Server",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isServerRunning) (backEndUrl ?: "Starting…") else "Not running",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = if (isServerRunning) FontFamily.Monospace else FontFamily.Default,
+                    color = if (isServerRunning) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            StatusPill(active = isServerRunning)
         }
-    )
+        CommonButton(
+            buttonText = if (isServerRunning) "Stop Server" else "Start Server",
+            onClick = { if (!isServerRunning) startServer() else stopServer() },
+            longPressToastMessage = "Toggle Server State",
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
 fun RequestPermission(onRequestPermission: () -> Unit){
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .padding(top = 10.dp, bottom = 10.dp)
-
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-
-        ) {
-            Text(
-                text = "Please Grant Permission to access files",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-            TextButton(
-                onClick = {onRequestPermission()},
-                modifier = Modifier.padding(end = 10.dp)
-            ) { Text("Launch Settings") }
-
-        }
+    StyledCard(title = "Permission Required") {
+        Text(
+            text = "This app needs access to all files to serve your media library.",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        CommonButton(
+            buttonText = "Launch Settings",
+            onClick = { onRequestPermission() },
+            longPressToastMessage = "Grant file access permission",
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -214,9 +260,9 @@ fun DatabaseManagement(
     exportDbAction: () -> Unit,
     importDbLauncher: ActivityResultLauncher<Array<String>>
 ) {
-    StyledCard {
+    StyledCard(title = "Database") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StyledText(text = "Database Export:")
+            Text(text = "Export to Downloads", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.weight(1f))
             CommonButton(
                 buttonText = "Export",
@@ -224,8 +270,9 @@ fun DatabaseManagement(
                 longPressToastMessage = "Export Database to Backup File"
             )
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StyledText(text = "Database Import:")
+            Text(text = "Import from backup", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.weight(1f))
             CommonButton(
                 buttonText = "Import",
@@ -235,13 +282,11 @@ fun DatabaseManagement(
         }
         val databaseActionStatus by mainActivityViewModel.databaseActionStatus.observeAsState("")
         if (databaseActionStatus.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Status: $databaseActionStatus",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text(
+                text = databaseActionStatus,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -250,13 +295,4 @@ fun DatabaseManagement(
 fun ServerImage() {
     Image(painter = painterResource(id = R.drawable.web), contentDescription = "Image of a Web", colorFilter = ColorFilter.tint(
         MaterialTheme.colorScheme.primary), modifier = Modifier.size(30.dp))
-}
-
-@Composable
-fun DisplayIP(address:String?) {
-    if(address!=null){
-        Text(text = address)
-    }else{
-        Text(text = "NULL")
-    }
 }

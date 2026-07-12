@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
 import android.os.Binder
 import android.os.Build
 import android.os.Handler
@@ -39,6 +40,7 @@ class ServerService: Service() {
     private val notificationID=101
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var waveLock:PowerManager.WakeLock
+    private var wifiLock: WifiManager.WifiLock? = null
     private var serverThread: Thread? = null
 
     private val updateRunnable = object : Runnable {
@@ -76,6 +78,10 @@ class ServerService: Service() {
                     "ServerApp::Tag"
                 )
                 waveLock.acquire()
+               @Suppress("DEPRECATION")
+                wifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                    .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "ServerApp::WifiLock")
+                wifiLock?.acquire()
             }
             serverThread?.start()
         }else{
@@ -114,6 +120,10 @@ class ServerService: Service() {
         if (this::waveLock.isInitialized && waveLock.isHeld) {
             waveLock.release()
         }
+        if (wifiLock?.isHeld == true) {
+            wifiLock?.release()
+        }
+        wifiLock = null
         serverThread?.interrupt()
         stopForeground(STOP_FOREGROUND_REMOVE)
     }

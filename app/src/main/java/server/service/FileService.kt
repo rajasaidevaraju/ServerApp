@@ -10,6 +10,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import database.AppDatabase
 import database.dao.FileDetails
+import database.dao.FileLocator
 import database.dao.Item
 import database.entity.FileMeta
 import database.entity.UploadProgress
@@ -24,6 +25,14 @@ import java.io.File
 import java.io.FileInputStream
 import kotlin.math.ceil
 
+
+data class StorageStats(
+    val totalInternal: Long,
+    val freeInternal: Long,
+    val totalExternal: Long,
+    val freeExternal: Long,
+    val hasExternalStorage: Boolean
+)
 
 class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
 
@@ -43,17 +52,26 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
     fun getInternalMemoryData():Pair<Long,Long>{
-        val storageVolume=fileHandlerHelper.getInternalVolume()
-        val total=getTotalMemorySize(storageVolume)
-        val free=getFreeMemorySize(storageVolume)
-        return Pair(total,free)
+        return getMemoryData(fileHandlerHelper.getInternalVolume())
     }
 
     fun getExternalMemoryData():Pair<Long,Long> {
-        val storageVolume = fileHandlerHelper.getExternalVolume()
-        val total = getTotalMemorySize(storageVolume)
-        val free = getFreeMemorySize(storageVolume)
-        return Pair(total,free)
+        return getMemoryData(fileHandlerHelper.getExternalVolume())
+    }
+
+    // Resolves both volumes once instead of enumerating storage per metric
+    fun getStorageStats(): StorageStats {
+        val internalVolume = fileHandlerHelper.getInternalVolume()
+        val externalVolume = fileHandlerHelper.getExternalVolume()
+        val (totalInternal, freeInternal) = getMemoryData(internalVolume)
+        val (totalExternal, freeExternal) = getMemoryData(externalVolume)
+        return StorageStats(
+            totalInternal = totalInternal,
+            freeInternal = freeInternal,
+            totalExternal = totalExternal,
+            freeExternal = freeExternal,
+            hasExternalStorage = externalVolume != null
+        )
     }
 
     fun getFileNamesInStorage():HashSet<String>{
@@ -76,28 +94,10 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
 
 
-    private fun getFreeMemorySize(storageVolume: StorageVolume?):Long{
-        if(storageVolume==null){
-            return 0
-        }
-        val path=storageVolume.directory
-        if(path==null){
-            return 0
-        }
+    private fun getMemoryData(storageVolume: StorageVolume?): Pair<Long, Long> {
+        val path = storageVolume?.directory ?: return Pair(0L, 0L)
         val stat = StatFs(path.path)
-        return stat.availableBytes
-    }
-
-    private fun getTotalMemorySize(storageVolume: StorageVolume?):Long{
-        if(storageVolume==null){
-            return 0
-        }
-        val path=storageVolume.directory
-        if(path==null){
-            return 0
-        }
-        val stat = StatFs(path.path)
-        return stat.totalBytes
+        return Pair(stat.totalBytes, stat.availableBytes)
     }
 
     fun scanFolder(selectedDirectoryUri: Uri): List<Long> {
@@ -285,8 +285,8 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
     }
     fun streamFile(fileId: Long,headers: Map<String, String> ,downloadFlag:Boolean): NanoHTTPD.Response {
 
-        val fileMeta = fileDao.getFileById(fileId)
-        val filePath=fileMeta?.fileUri?.path
+        val fileLocator = fileDao.getFileLocatorById(fileId)
+        val filePath=fileLocator?.fileUri?.path
         val gson: Gson = GsonBuilder().create()
         val responseContent= mapOf("message" to "File not found or inaccessible")
         val fileNotFoundResponse = newFixedLengthResponse(

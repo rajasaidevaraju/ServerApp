@@ -45,6 +45,12 @@ interface FileDAO {
     @Query("SELECT * FROM file_meta WHERE fileId = :fileId")
     fun getFileById(fileId: Long): FileMeta?
 
+    @Query("SELECT fileId, file_uri AS fileUri FROM file_meta WHERE fileId = :fileId")
+    fun getFileLocatorById(fileId: Long): FileLocator?
+
+    @Query("SELECT file_name FROM file_meta WHERE fileId = :fileId")
+    fun getFileNameById(fileId: Long): String?
+
     @Query("SELECT screenshot_binary FROM file_meta WHERE fileId = :fileId")
     fun getScreenshotDataBinary(fileId: Long): ByteArray?
 

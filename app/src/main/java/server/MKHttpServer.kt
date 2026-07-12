@@ -112,10 +112,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
             "/stats"->{
                 try {
 
-                    val hasExternalStorage = fileHandlerHelper.isSdCardAvailable()
                     val files = database.fileDao().getTotalFileCount()
-                    val (totalInternal,freeInternal)=fileService.getInternalMemoryData()
-                    val (totalExternal,freeExternal)=fileService.getExternalMemoryData()
+                    val storageStats = fileService.getStorageStats()
 
                     // battery percentage and charging status
                     val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -132,11 +130,11 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
                     val responseContent = mapOf(
                         "files" to files,
-                        "freeInternal" to freeInternal,
-                        "totalInternal" to totalInternal,
-                        "freeExternal" to freeExternal,
-                        "totalExternal" to totalExternal,
-                        "hasExternalStorage" to hasExternalStorage,
+                        "freeInternal" to storageStats.freeInternal,
+                        "totalInternal" to storageStats.totalInternal,
+                        "freeExternal" to storageStats.freeExternal,
+                        "totalExternal" to storageStats.totalExternal,
+                        "hasExternalStorage" to storageStats.hasExternalStorage,
                         "percentage" to batteryPct,
                         "charging" to isCharging
                     )

@@ -310,14 +310,14 @@ class FileController(private val context: Context,
         }
         return try {
             val fileId = fileIdStr.toLong()
-            val fileMeta = database.fileDao().getFileById(fileId)
-            if (fileMeta == null) {
+            val fileName = database.fileDao().getFileNameById(fileId)
+            if (fileName == null) {
                 return badRequest("file ID $fileId not present")
             }
             newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
                 MIME_JSON,
-                gson.toJson(mapOf("fileName" to fileMeta.fileName))
+                gson.toJson(mapOf("fileName" to fileName))
             )
         } catch (exception: NumberFormatException) {
             badRequest("Invalid fileId")

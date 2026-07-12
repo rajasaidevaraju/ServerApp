@@ -294,12 +294,14 @@ class FileController(private val context: Context,
             if (thumbnail == null) {
                 thumbnail = ByteArray(0)
             }
-            newFixedLengthResponse(
+            val response = newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
                 MIME_JPEG,
                 thumbnail.inputStream(),
                 thumbnail.size.toLong()
             )
+            response.addHeader("Cache-Control", "max-age=3600")
+            response
         } catch (exception: Exception) {
             internalServerError(exception,"Could not get thumbnail for id: $fileIdStr")
         }

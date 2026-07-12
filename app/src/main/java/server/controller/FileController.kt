@@ -11,6 +11,8 @@ import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import helpers.SharedPreferencesHelper
 import server.service.DBService
 import server.service.FileService
+import server.service.GifGenerationException
+import server.service.GifService
 import server.service.NetworkService
 import java.io.File
 import java.io.FileOutputStream
@@ -21,7 +23,8 @@ import java.time.format.DateTimeFormatter
 class FileController(private val context: Context,
                      private val database: AppDatabase, private val fileService: FileService,
                      private val networkService: NetworkService,
-                     private val dbService: DBService,  prefHandler: SharedPreferencesHelper
+                     private val dbService: DBService, private val gifService: GifService,
+                     prefHandler: SharedPreferencesHelper
 ) : BaseController(prefHandler) {
 
     private val fileDao = database.fileDao()
@@ -33,6 +36,7 @@ class FileController(private val context: Context,
         router.get("/file") { _, session -> getFile(session) }
         router.get("/thumbnail") { _, session -> getThumbnail(session) }
         router.get("/name") { _, session -> getFileName(session) }
+        router.get("/file/{fileId}/gif") { params, session -> getGifPreview(params.longPathParam("fileId"), session) }
         router.get("/file/status") { _, session -> getChunkedUploadStatus(session) }
 
         router.post("/file") { _, session -> uploadFile(session) }
@@ -298,6 +302,29 @@ class FileController(private val context: Context,
             )
         } catch (exception: Exception) {
             internalServerError(exception,"Could not get thumbnail for id: $fileIdStr")
+        }
+    }
+
+    private fun getGifPreview(fileId: Long, session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
+        val params = session.parameters
+        val width = (params["width"]?.firstOrNull()?.toIntOrNull() ?: 320).coerceIn(64, 720)
+        val frames = (params["frames"]?.firstOrNull()?.toIntOrNull() ?: 10).coerceIn(2, 30)
+        val delayMs = (params["delay"]?.firstOrNull()?.toIntOrNull() ?: 800).coerceIn(20, 5000)
+
+        return try {
+            val gif = gifService.generateGif(fileId, width, frames, delayMs)
+            val response = newFixedLengthResponse(
+                NanoHTTPD.Response.Status.OK,
+                "image/gif",
+                gif.inputStream(),
+                gif.size.toLong()
+            )
+            response.addHeader("Cache-Control", "max-age=3600")
+            response
+        } catch (exception: GifGenerationException) {
+            notFound(exception.message ?: "Could not generate GIF")
+        } catch (exception: Exception) {
+            internalServerError(exception, "Could not generate GIF for id: $fileId")
         }
     }
 

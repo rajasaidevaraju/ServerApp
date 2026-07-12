@@ -16,6 +16,7 @@ import server.controller.PerformerController
 import server.service.DBService
 import server.service.EntityService
 import server.service.FileService
+import server.service.GifService
 import server.service.UserService
 import server.service.NetworkService
 import server.service.SessionManager
@@ -59,7 +60,8 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val userService by lazy {UserService(database,sessionManager)}
     private val entityService by lazy {EntityService(database)}
     private val fileService by lazy { FileService(database,fileHandlerHelper,prefHandler,context) }
-    private val fileController by lazy { FileController(context,database,fileService,networkService,dbService,prefHandler) }
+    private val gifService by lazy { GifService(database) }
+    private val fileController by lazy { FileController(context,database,fileService,networkService,dbService,gifService,prefHandler) }
     private val performerController by lazy { PerformerController(database, entityService,prefHandler) }
     private val MIME_JSON="application/json"
     private val dbService by lazy { DBService(database) }

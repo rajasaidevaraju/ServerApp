@@ -33,6 +33,10 @@ interface FileDAO {
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
 
+    @Query("""SELECT COUNT(*) FROM file_meta
+            WHERE NOT EXISTS (SELECT 1 FROM video_actress_cross_ref WHERE video_actress_cross_ref.fileId = file_meta.fileId)""")
+    fun getFileCountWithoutPerformer(): Int
+
     @Query("SELECT EXISTS(SELECT 1 FROM file_meta WHERE file_name = :fileName)")
     fun isFileNamePresent(fileName: String): Boolean
 

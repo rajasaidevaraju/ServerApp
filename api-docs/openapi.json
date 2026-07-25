@@ -241,11 +241,21 @@
           {
             "name": "performerId",
             "in": "query",
-            "description": "Optional performer ID to filter files.",
+            "description": "Optional performer ID to filter files. Ignored when `unassigned` is true.",
             "required": false,
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "description": "When true, returns only files that have no performer associations. Takes precedence over `performerId`.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           },
           {

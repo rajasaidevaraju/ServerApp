@@ -68,8 +68,10 @@ class FileController(private val context: Context,
     private fun getFiles(session: NanoHTTPD.IHTTPSession): NanoHTTPD.Response {
         val params = session.parameters
         val page = params["page"]?.firstOrNull()
-        val performerId=params["performerId"]?.firstOrNull()?.toLongOrNull()
+        val requestedPerformerId=params["performerId"]?.firstOrNull()?.toLongOrNull()
         val sortBy=params["sortBy"]?.firstOrNull()?: "latest"
+        val unassignedOnly = params["unassigned"]?.firstOrNull()?.lowercase() in setOf("1", "true", "yes")
+        val performerId = if (unassignedOnly) null else requestedPerformerId
         var pageNo = 1
         val pageSize = 18
 
@@ -89,7 +91,20 @@ class FileController(private val context: Context,
         }
 
         // orderClause is safe to interpolate: it comes from the whitelist above
-        val query = if (performerId == null) {
+        val query = if (unassignedOnly) {
+            SimpleSQLiteQuery(
+                """
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                FROM file_meta
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM video_actress_cross_ref WHERE video_actress_cross_ref.fileId = file_meta.fileId
+                )
+                $orderClause
+                LIMIT ? OFFSET ?
+                """,
+                arrayOf<Any>(pageSize, offset)
+            )
+        } else if (performerId == null) {
             SimpleSQLiteQuery(
                 """
                 SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
@@ -118,7 +133,9 @@ class FileController(private val context: Context,
         else
             fileDao.getFilesSortedForPerformer(query)
 
-        val totalFiles = if (performerId == null)
+        val totalFiles = if (unassignedOnly)
+            fileDao.getFileCountWithoutPerformer()
+        else if (performerId == null)
             fileDao.getTotalFileCount()
         else
             database.videoActressCrossRefDao().getVideosForActress(performerId).size

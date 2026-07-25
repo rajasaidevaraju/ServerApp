@@ -9,19 +9,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
-import android.os.Binder
-import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.os.PowerManager
-import android.os.SystemClock
-import android.text.format.DateUtils.formatElapsedTime
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import database.AppDatabase
 import helpers.SharedPreferencesHelper
-import java.util.Locale
 
 class ServerService: Service() {
 
@@ -36,25 +28,15 @@ class ServerService: Service() {
     private lateinit var serverHandler: MKHttpServer
     private val networkHandler by lazy { NetworkHelper() }
     private val prefHandler by lazy { SharedPreferencesHelper(this) }
-    private var startTime: Long = 0L
     private val notificationID=101
-    private val handler = Handler(Looper.getMainLooper())
     private lateinit var waveLock:PowerManager.WakeLock
     private var wifiLock: WifiManager.WifiLock? = null
     private var serverThread: Thread? = null
 
-    private val updateRunnable = object : Runnable {
-        override fun run() {
-            val elapsedTime = SystemClock.elapsedRealtime() - startTime
-            val elapsedTimeFormatted = formatElapsedTime(elapsedTime)
-            updateNotification(elapsedTimeFormatted)
-            handler.postDelayed(this, 60000) // Update every minute
-        }
-    }
-
     private val SERVER_START_ACTION_NAME="SERVER_START"
     private val SERVER_STOP_ACTION_NAME="SERVER_STOP"
-    private val CHANNEL_ID = "ServerServiceChannel"
+    private val LEGACY_CHANNEL_ID = "ServerServiceChannel"
+    private val CHANNEL_ID = "ServerServiceChannelQuiet"
     private val TITLE="Server Running"
 
     override fun onCreate() {
@@ -71,8 +53,6 @@ class ServerService: Service() {
                 serverHandler.start()
                 isRunning = true
                 updateStoredPref()
-                startTime = SystemClock.elapsedRealtime()
-                handler.post(updateRunnable)
                 waveLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
                     PowerManager.PARTIAL_WAKE_LOCK,
                     "ServerApp::Tag"
@@ -107,7 +87,6 @@ class ServerService: Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
-        handler.removeCallbacks(updateRunnable)
         if (serverHandler.isAlive) {
             serverHandler.stop()
             val broadcastIntent = Intent(SERVER_STOP_ACTION_NAME)
@@ -133,54 +112,34 @@ class ServerService: Service() {
     }
 
     private fun startForegroundNotification() {
-        val initialNotification = buildNotification(TITLE, "Elapsed time: 0:00")
-        startForeground(notificationID, initialNotification);
+        startForeground(notificationID, buildNotification())
     }
 
     private fun createNotificationChannel() {
         val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
+        notificationManager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
         val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
         if (existingChannel == null) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Server Channel",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_LOW
             )
+            channel.setShowBadge(false)
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(title: String, content: String): Notification {
+    private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(content)
+            .setContentTitle(TITLE)
             .setSmallIcon(R.drawable.notification_icon)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setUsesChronometer(true)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
             .build()
-    }
-
-    private fun updateNotification(elapsedTime: String) {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        val notification = buildNotification(TITLE, "Elapsed time: $elapsedTime")
-        notificationManager.notify(notificationID, notification)
-    }
-
-    private fun formatElapsedTime(elapsedTime: Long): String {
-        val minutes = (elapsedTime / 60000) % 60
-        val hours = (elapsedTime / 3600000) % 24
-        val days = elapsedTime /86400000
-        return when{
-            days>0->{
-                val dayString= if(days==1L) "1 day" else "$days days"
-                String.format(Locale.US,"%s %02d hr %02d min",dayString,hours,minutes)
-            }
-            hours>0 -> {
-                String.format(Locale.US,"%02d hr %02d min",hours,minutes)
-            }
-            else->{
-                String.format(Locale.US, "%02d min",minutes)
-            }
-        }
     }
 
 }

@@ -94,7 +94,7 @@ class FileController(private val context: Context,
         val query = if (unassignedOnly) {
             SimpleSQLiteQuery(
                 """
-                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs, file_meta.thumbnail_updated_at AS thumbnailUpdatedAt
                 FROM file_meta
                 WHERE NOT EXISTS (
                     SELECT 1 FROM video_actress_cross_ref WHERE video_actress_cross_ref.fileId = file_meta.fileId
@@ -107,7 +107,7 @@ class FileController(private val context: Context,
         } else if (performerId == null) {
             SimpleSQLiteQuery(
                 """
-                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs, file_meta.thumbnail_updated_at AS thumbnailUpdatedAt
                 FROM file_meta
                 $orderClause
                 LIMIT ? OFFSET ?
@@ -117,7 +117,7 @@ class FileController(private val context: Context,
         } else {
             SimpleSQLiteQuery(
                 """
-                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs
+                SELECT file_meta.fileId AS fileId, file_meta.file_name AS fileName, file_meta.file_size_bytes AS fileSize, file_meta.duration_ms as durationMs, file_meta.thumbnail_updated_at AS thumbnailUpdatedAt
                 FROM file_meta
                 JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
                 WHERE video_actress_cross_ref.actressId = ?
@@ -317,7 +317,14 @@ class FileController(private val context: Context,
                 thumbnail.inputStream(),
                 thumbnail.size.toLong()
             )
-            response.addHeader("Cache-Control", "max-age=3600")
+            // A `v` param pins the URL to one revision of the bytes, so it can be cached
+            // forever. Without one the response may be a placeholder or a pre-versioning
+            // thumbnail, so keep the window short enough to self-heal.
+            val versioned = !params["v"]?.firstOrNull().isNullOrBlank()
+            response.addHeader(
+                "Cache-Control",
+                if (versioned) "public, max-age=31536000, immutable" else "public, max-age=60"
+            )
             response
         } catch (exception: Exception) {
             internalServerError(exception,"Could not get thumbnail for id: $fileIdStr")
@@ -401,11 +408,13 @@ class FileController(private val context: Context,
                 return badRequest("Empty image file")
             }
 
-            database.fileDao().updateScreenshotBinary(fileId = fileId, binary = imageBytes)
+            val updatedAt = System.currentTimeMillis()
+            database.fileDao().updateScreenshotBinary(fileId = fileId, binary = imageBytes, updatedAt = updatedAt)
 
             val responseContent = mapOf(
                 "message" to "Thumbnail updated successfully",
-                "fileId" to fileId
+                "fileId" to fileId,
+                "thumbnailUpdatedAt" to updatedAt
             )
             newFixedLengthResponse(
                 NanoHTTPD.Response.Status.OK,
@@ -433,12 +442,19 @@ class FileController(private val context: Context,
             val result = fileService.extractAndSaveThumbnail(fileId, timestamp)
             if (result.success) {
                 val thumbnail = database.fileDao().getScreenshotDataBinary(fileId) ?: ByteArray(0)
-                newFixedLengthResponse(
+                val response = newFixedLengthResponse(
                     NanoHTTPD.Response.Status.OK,
                     MIME_JPEG,
                     thumbnail.inputStream(),
                     thumbnail.size.toLong()
                 )
+                // Lets the caller version its <img> URLs immediately, without waiting for
+                // the next file-list fetch to carry the new timestamp.
+                response.addHeader(
+                    "X-Thumbnail-Updated-At",
+                    (database.fileDao().getThumbnailUpdatedAt(fileId) ?: 0L).toString()
+                )
+                response
             } else {
                 badRequest(result.message)
             }

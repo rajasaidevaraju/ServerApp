@@ -344,6 +344,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "origin, content-type, accept, authorization")
         response.addHeader("Access-Control-Allow-Credentials", "true")
+        response.addHeader("Access-Control-Expose-Headers", "X-Thumbnail-Updated-At")
     }
 
     private fun extractHostname(url: String): String? {

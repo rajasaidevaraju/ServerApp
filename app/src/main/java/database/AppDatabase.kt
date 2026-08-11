@@ -24,7 +24,7 @@ import database.jointable.VideoCategoryCrossRef
 
 @Database(
     entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class, UploadProgress::class],
-    version = 9,exportSchema = false
+    version = 10,exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDAO
@@ -48,7 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
                 INSTANCE = instance
                 return instance
             }
@@ -166,6 +166,17 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_upload_progress_file_name_target ON upload_progress(file_name, target)")
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE file_meta ADD COLUMN thumbnail_updated_at INTEGER NOT NULL DEFAULT 0")
+                // Stamp thumbnails that predate this column so their URLs change once and
+                // evict whatever the browsers already cached under the un-versioned URL.
+                db.execSQL(
+                    "UPDATE file_meta SET thumbnail_updated_at = ${System.currentTimeMillis()} WHERE screenshot_binary IS NOT NULL"
+                )
             }
         }
     }

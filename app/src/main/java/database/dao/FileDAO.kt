@@ -24,10 +24,10 @@ interface FileDAO {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertFiles(fileMetas: List<FileMeta>):List<Long>
 
-    @Query("SELECT fileId, file_name,file_uri,file_size_bytes,duration_ms  FROM file_meta")
+    @Query("SELECT fileId, file_name,file_uri,file_size_bytes,duration_ms,thumbnail_updated_at  FROM file_meta")
     fun getAllFiles(): List<FileMeta>
 
-    @Query("SELECT fileId, file_name as fileName, file_size_bytes as fileSize, duration_ms AS durationMs  FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
+    @Query("SELECT fileId, file_name as fileName, file_size_bytes as fileSize, duration_ms AS durationMs, thumbnail_updated_at AS thumbnailUpdatedAt  FROM file_meta ORDER BY fileId DESC LIMIT :pageSize OFFSET :offset")
     fun getFilesPaginated(offset:Int, pageSize:Int): List<FileMetaSimple>
 
     @Query("SELECT COUNT(*) FROM file_meta")
@@ -73,8 +73,11 @@ interface FileDAO {
     @Query("UPDATE file_meta SET duration_ms = :durationMs WHERE fileId = :fileId")
     fun updateFileDuration(fileId: Long, durationMs: Long): Int
 
-    @Query("UPDATE file_meta SET screenshot_binary = :binary WHERE fileId = :fileId")
-    fun updateScreenshotBinary(fileId: Long, binary: ByteArray)
+    @Query("UPDATE file_meta SET screenshot_binary = :binary, thumbnail_updated_at = :updatedAt WHERE fileId = :fileId")
+    fun updateScreenshotBinary(fileId: Long, binary: ByteArray, updatedAt: Long)
+
+    @Query("SELECT thumbnail_updated_at FROM file_meta WHERE fileId = :fileId")
+    fun getThumbnailUpdatedAt(fileId: Long): Long?
 
     @Delete
     fun deleteFile(fileMeta: FileMeta)
@@ -82,7 +85,7 @@ interface FileDAO {
     @Query("SELECT * FROM file_meta INNER JOIN video_category_cross_ref ON file_meta.fileId = video_category_cross_ref.fileId INNER JOIN actress ON video_category_cross_ref.categoryId = actress.actressId")
     fun getFilesAndActress(): Map<FileMeta, List<Actress>>
     @Query("""
-        SELECT  file_meta.fileId as fileId,  file_meta.file_name as fileName, actress.actressId as performerId, actress.name as performerName
+        SELECT  file_meta.fileId as fileId,  file_meta.file_name as fileName, file_meta.thumbnail_updated_at as thumbnailUpdatedAt, actress.actressId as performerId, actress.name as performerName
         FROM file_meta
         LEFT JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
         LEFT JOIN actress ON video_actress_cross_ref.actressId = actress.actressId
@@ -91,7 +94,7 @@ interface FileDAO {
     fun getFileWithPerformers(fileId: Long): List<FileDetailsWithPerformers>
 
 
-    @Query("""SELECT file_meta.fileId as fileId, file_meta.file_name as fileName, file_meta.file_size_bytes as fileSize, file_meta.duration_ms as durationMs FROM file_meta
+    @Query("""SELECT file_meta.fileId as fileId, file_meta.file_name as fileName, file_meta.file_size_bytes as fileSize, file_meta.duration_ms as durationMs, file_meta.thumbnail_updated_at as thumbnailUpdatedAt FROM file_meta
             INNER JOIN video_actress_cross_ref ON file_meta.fileId = video_actress_cross_ref.fileId
             WHERE video_actress_cross_ref.actressId=:performerId
             ORDER BY file_meta.fileId DESC LIMIT :pageSize OFFSET :offset""")
@@ -115,6 +118,7 @@ data class Item(
 data class FileDetails(
     val name: String,
     val id: Long,
+    val thumbnailUpdatedAt: Long,
     val performers: List<Item>
 )
 
@@ -127,13 +131,15 @@ data class FileMetaSimple(
     val fileId: Long,
     val fileName: String,
     val fileSize: Long,
-    val durationMs: Long
+    val durationMs: Long,
+    val thumbnailUpdatedAt: Long = 0L
 )
 
 
 data class FileDetailsWithPerformers(
     val fileId: Long,
     val fileName: String,
+    val thumbnailUpdatedAt: Long,
     val performerId: Long?,
     val performerName: String?
 )

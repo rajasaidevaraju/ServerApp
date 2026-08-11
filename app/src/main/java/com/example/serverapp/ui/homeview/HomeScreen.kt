@@ -34,8 +34,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.serverapp.BuildConfig
 import com.example.serverapp.R
 import com.example.serverapp.UserManagementActivity
 import com.example.serverapp.ui.CommonButton
@@ -63,7 +65,20 @@ fun HomeScreen(
         Info(mainActivityViewModel)
         DatabaseManagement(mainActivityViewModel, exportDbAction, importDbLauncher)
         Spacer(Modifier.height(16.dp))
+        AppVersionFooter()
+        Spacer(Modifier.height(16.dp))
     }
+}
+
+@Composable
+fun AppVersionFooter() {
+    Text(
+        text = "v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

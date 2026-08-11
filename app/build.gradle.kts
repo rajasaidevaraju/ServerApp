@@ -45,6 +45,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // generates BuildConfig.VERSION_NAME/VERSION_CODE for the version footer
+        buildConfig = true
     }
     packaging {
         resources {

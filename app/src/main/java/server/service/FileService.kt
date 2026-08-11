@@ -238,6 +238,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
 
         val name=result.first().fileName
         val id=result.first().fileId
+        val thumbnailUpdatedAt=result.first().thumbnailUpdatedAt
         val items:MutableList<Item> =  mutableListOf()
 
         for(item in result){
@@ -246,7 +247,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
             }
         }
 
-        val fileDetails= FileDetails(name,id,items)
+        val fileDetails= FileDetails(name,id,thumbnailUpdatedAt,items)
         val gson: Gson = GsonBuilder().create()
         val jsonContent: String = gson.toJson(fileDetails)
         return ServiceResult(success = true, message = jsonContent)
@@ -572,7 +573,7 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
                 val stream = java.io.ByteArrayOutputStream()
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 50, stream)
                 val byteArray = stream.toByteArray()
-                fileDao.updateScreenshotBinary(fileId, byteArray)
+                fileDao.updateScreenshotBinary(fileId, byteArray, System.currentTimeMillis())
                 return ServiceResult(true, "Thumbnail extracted successfully")
             } else {
                 return ServiceResult(false, "Failed to extract thumbnail frame")

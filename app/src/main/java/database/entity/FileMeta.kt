@@ -23,6 +23,10 @@ data class FileMeta(
     val screenshotData: String? = null,
     @ColumnInfo(name = "screenshot_binary", typeAffinity = ColumnInfo.BLOB)
     val screenshotBinary: ByteArray? = null,
+    // Epoch millis of the last thumbnail write; served to clients as a cache-busting
+    // token so a replaced thumbnail gets a new URL instead of a stale cached one.
+    @ColumnInfo(name = "thumbnail_updated_at", defaultValue = "0")
+    val thumbnailUpdatedAt: Long = 0L,
     @ColumnInfo(name = "file_size_bytes", defaultValue = "0")
     val fileSize: Long=0L,
     @ColumnInfo(name = "duration_ms", defaultValue = "0")

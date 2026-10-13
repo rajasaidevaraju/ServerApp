@@ -1227,6 +1227,7 @@
         "description": "Device statistics.",
         "properties": {
           "files": { "type": "integer", "description": "Total number of files in the database." },
+          "totalFileSize": { "type": "integer", "format": "int64", "description": "Total size in bytes of all files in the database." },
           "freeInternal": { "type": "integer", "format": "int64", "description": "Free internal storage space in bytes." },
           "totalInternal": { "type": "integer", "format": "int64", "description": "Total internal storage space in bytes." },
           "freeExternal": { "type": "integer", "format": "int64", "description": "Free external storage space (SD card) in bytes, 0 if unavailable." },
@@ -1235,7 +1236,7 @@
           "percentage": { "type": "integer", "description": "Current battery percentage (0-100), or -1 if unavailable." },
           "charging": { "type": "boolean", "description": "Indicates if the device is currently charging." }
         },
-        "required": ["files", "freeInternal", "totalInternal", "freeExternal", "totalExternal", "hasExternalStorage", "percentage", "charging"]
+        "required": ["files", "totalFileSize", "freeInternal", "totalInternal", "freeExternal", "totalExternal", "hasExternalStorage", "percentage", "charging"]
       },
       "LoginResponse": {
         "type": "object",

@@ -33,6 +33,9 @@ interface FileDAO {
     @Query("SELECT COUNT(*) FROM file_meta")
     fun getTotalFileCount(): Int
 
+    @Query("SELECT COALESCE(SUM(file_size_bytes), 0) FROM file_meta")
+    fun getTotalFileSize(): Long
+
     @Query("""SELECT COUNT(*) FROM file_meta
             WHERE NOT EXISTS (SELECT 1 FROM video_actress_cross_ref WHERE video_actress_cross_ref.fileId = file_meta.fileId)""")
     fun getFileCountWithoutPerformer(): Int

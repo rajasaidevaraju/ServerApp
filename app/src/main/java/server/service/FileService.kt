@@ -22,7 +22,12 @@ import helpers.FileHandlerHelper
 import helpers.SharedPreferencesHelper
 import org.json.JSONObject
 import java.io.File
+import java.io.BufferedInputStream
 import java.io.FileInputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.ceil
 
 
@@ -36,7 +41,11 @@ data class StorageStats(
 
 class FileService(private val database: AppDatabase,private val fileHandlerHelper: FileHandlerHelper, private val prefHandler: SharedPreferencesHelper, private val context: Context) {
 
-    private val mimeType = "video/mp4"
+    private val httpDateFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US).apply { timeZone = TimeZone.getTimeZone("GMT") }
+    }
+    // read storage in larger blocks than NanoHTTPD's 16KB socket writes
+    private val streamBufferSize = 256 * 1024
     private val fileDao=database.fileDao()
     private val uploadProgressDao = database.uploadProgressDao()
 
@@ -305,107 +314,96 @@ class FileService(private val database: AppDatabase,private val fileHandlerHelpe
         }
         try {
             val fileLength = file.length()
+            val eTag = "\"${fileLength.toString(16)}-${file.lastModified().toString(16)}\""
+            val lastModified = httpDateFormat.get()!!.format(Date(file.lastModified()))
             val rangeHeader = headers["range"]
+            // If-Range: only honour the range when the client's copy is still current
+            val ifRange = headers["if-range"]
+            val rangeApplies = rangeHeader != null && rangeHeader.startsWith("bytes=") &&
+                    (ifRange == null || ifRange == eTag || ifRange == lastModified)
 
-            return if (rangeHeader != null && rangeHeader.startsWith("bytes=") ) {
-                getPartialResponse(file, rangeHeader, fileLength, downloadFlag)
-            }else{
-                getFullResponse(file,downloadFlag)
+            if (!rangeApplies) {
+                return buildFileResponse(file, Status.OK, 0, fileLength, downloadFlag, eTag, lastModified)
             }
+
+            val range = parseRange(rangeHeader!!.substring("bytes=".length), fileLength)
+            if (range == null) {
+                val response = newFixedLengthResponse(Status.RANGE_NOT_SATISFIABLE, "text/plain", "")
+                response.addHeader("Content-Range", "bytes */$fileLength")
+                return response
+            }
+
+            val response = buildFileResponse(file, Status.PARTIAL_CONTENT, range.first, range.last - range.first + 1, downloadFlag, eTag, lastModified)
+            response.addHeader("Content-Range", "bytes ${range.first}-${range.last}/$fileLength")
+            return response
 
         } catch (e: Exception) {
             e.printStackTrace()
             val responseContent= mapOf("message" to "Error when streaming file")
-            return newFixedLengthResponse(Status.NOT_FOUND, "application/json", gson.toJson(responseContent))
+            return newFixedLengthResponse(Status.INTERNAL_ERROR, "application/json", gson.toJson(responseContent))
         }
     }
 
-
-    private fun getFullResponse(file: File,downloadFlag: Boolean): NanoHTTPD.Response {
-        try {
-            val inputStream = FileInputStream(file)
-            try {
-                val fileSize = file.length()
-                val response = NanoHTTPD.newFixedLengthResponse(
-                    Status.OK,
-                    mimeType,
-                    inputStream,
-                    fileSize
-                )
-                response.addHeader("Accept-Ranges", "bytes")
-
-                if (downloadFlag) {
-                    val dispositionValue = "attachment; filename=\"${file.name}\""
-                    response.addHeader("Content-Disposition", dispositionValue)
-                }
-                return response
-            } catch (e: Exception) {
-                // the stream is only closed by NanoHTTPD once it is handed a response
-                inputStream.close()
-                throw e
-            }
-        }catch (e: Exception) {
-            // Handle exceptions or errors while accessing the file
-            e.printStackTrace()
-            return newFixedLengthResponse(
-                Status.INTERNAL_ERROR,
-                "text/plain",
-                "Internal Server Error"
-            )
+    // Returns null when the range cannot be satisfied for this file length.
+    // Multi-range requests are not supported, only the first range is served.
+    private fun parseRange(rangeValue: String, fileLength: Long): LongRange? {
+        val spec = rangeValue.substringBefore(",").trim()
+        val dash = spec.indexOf('-')
+        if (dash < 0 || fileLength == 0L) {
+            return null
         }
-    }
-
-
-    private fun getPartialResponse(file: File, rangeHeader: String, fileLength: Long, downloadFlag:Boolean): NanoHTTPD.Response {
-
-        try {
-            val rangeValue = rangeHeader.trim().substring("bytes=".length)
-            val start: Long
-            var end: Long
-            if (rangeValue.startsWith("-")) {
-                end = fileLength - 1
-                start = (fileLength - 1
-                        - rangeValue.substring("-".length).toLong())
+        val startStr = spec.substring(0, dash).trim()
+        val endStr = spec.substring(dash + 1).trim()
+        return try {
+            if (startStr.isEmpty()) {
+                // suffix range: "bytes=-N" means the last N bytes
+                val suffixLength = endStr.toLong()
+                if (suffixLength <= 0) null else maxOf(0L, fileLength - suffixLength)..(fileLength - 1)
             } else {
-                val range = rangeValue.split("-".toRegex()).dropLastWhile { it.isEmpty() }
-                    .toTypedArray()
-                start = range[0].toLong()
-                end = if (range.size > 1) range[1].toLong() else fileLength - 1
+                val start = startStr.toLong()
+                val end = if (endStr.isEmpty()) fileLength - 1 else minOf(endStr.toLong(), fileLength - 1)
+                if (start >= fileLength || start > end) null else start..end
             }
-            if (end > fileLength - 1) {
-                end = fileLength - 1
+        } catch (_: NumberFormatException) {
+            null
+        }
+    }
+
+    private fun buildFileResponse(file: File, status: Status, start: Long, length: Long, downloadFlag: Boolean, eTag: String, lastModified: String): NanoHTTPD.Response {
+        val fileInputStream = FileInputStream(file)
+        try {
+            // position() seeks exactly, unlike skip() which may skip fewer bytes
+            fileInputStream.channel.position(start)
+            val response = newFixedLengthResponse(
+                status,
+                getVideoMimeType(file),
+                BufferedInputStream(fileInputStream, streamBufferSize),
+                length
+            )
+            response.addHeader("Accept-Ranges", "bytes")
+            response.addHeader("ETag", eTag)
+            response.addHeader("Last-Modified", lastModified)
+            response.addHeader("Cache-Control", "private, max-age=86400")
+
+            if (downloadFlag) {
+                val dispositionValue = "attachment; filename=\"${file.name}\""
+                response.addHeader("Content-Disposition", dispositionValue)
             }
-            val contentLength = end - start + 1
-
-            val fileInputStream = FileInputStream(file)
-            try {
-                fileInputStream.skip(start)
-                val response = NanoHTTPD.newFixedLengthResponse(
-                    Status.PARTIAL_CONTENT,
-                    mimeType,
-                    fileInputStream,
-                    contentLength
-                )
-                response.addHeader("Accept-Ranges", "bytes")
-                response.addHeader("Content-Range", "bytes $start-$end/$fileLength")
-
-                if (downloadFlag) {
-                    val dispositionValue = "attachment; filename=\"${file.name}\""
-                    response.addHeader("Content-Disposition", dispositionValue)
-                }
-                return response
-            } catch (e: Exception) {
-                // the stream is only closed by NanoHTTPD once it is handed a response
-                fileInputStream.close()
-                throw e
-            }
-
+            return response
         } catch (e: Exception) {
-            e.printStackTrace()
-            val gson: Gson = GsonBuilder().create()
-            val responseContent = mapOf("message" to "Error while seeking for file")
-            val jsonContent: String = gson.toJson(responseContent)
-            return newFixedLengthResponse(Status.INTERNAL_ERROR, "application/json",jsonContent )
+            // the stream is only closed by NanoHTTPD once it is handed a response
+            fileInputStream.close()
+            throw e
+        }
+    }
+
+    private fun getVideoMimeType(file: File): String {
+        return when (file.extension.lowercase()) {
+            "webm" -> "video/webm"
+            "mkv" -> "video/x-matroska"
+            "mov" -> "video/quicktime"
+            "avi" -> "video/x-msvideo"
+            else -> "video/mp4"
         }
     }
 

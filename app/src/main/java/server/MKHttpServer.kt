@@ -115,6 +115,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
                 try {
 
                     val files = database.fileDao().getTotalFileCount()
+                    val totalFileSize = database.fileDao().getTotalFileSize()
                     val storageStats = fileService.getStorageStats()
 
                     // battery percentage and charging status
@@ -132,6 +133,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
 
                     val responseContent = mapOf(
                         "files" to files,
+                        "totalFileSize" to totalFileSize,
                         "freeInternal" to storageStats.freeInternal,
                         "totalInternal" to storageStats.totalInternal,
                         "freeExternal" to storageStats.freeExternal,

@@ -1,61 +1,42 @@
 package server.service
 
-import java.time.Instant
+import database.AppDatabase
+import database.entity.Session
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
-data class Session(
-    val userId: Long,
-    val createdAt: Instant = Instant.now(),
-    val expiresAt: Instant = Instant.now().plusSeconds(120 * 60 * 1000L)
-)
-
-class SessionManager {
-    private val sessions = ConcurrentHashMap<String, Session>()
-    private val sessionDuration = 120 * 60 * 1000L // 120 minutes
-    private val cleanupInterval = 60 * 1000L
-
-    init {
-        Thread {
-            while (true) {
-                cleanupExpiredSessions()
-                Thread.sleep(cleanupInterval)
-            }
-        }.start()
-    }
+class SessionManager(private val database: AppDatabase) {
+    private val sessionDuration = 120 * 60 * 1000L // 120 minutes, never extended
 
     fun createSession(userId: Long): String {
+        val now = System.currentTimeMillis()
+        database.sessionDao().deleteExpired(now)
         val token = UUID.randomUUID().toString() // Simple unique token
-        val session = Session(userId)
-        sessions[token] = session
+        database.sessionDao().insert(Session(token, userId, now, now + sessionDuration))
         return token
     }
 
     fun validateSession(token: String): Long? {
-        val session = sessions[token] ?: return null
-        if (session.expiresAt.isBefore(Instant.now())) {
-            sessions.remove(token) // Remove expired session
+        val session = database.sessionDao().getByToken(token) ?: return null
+        if (session.expiresAt <= System.currentTimeMillis()) {
+            database.sessionDao().deleteByToken(token) // Remove expired session
             return null
         }
         return session.userId
     }
 
     fun invalidateSession(token: String) {
-        sessions.remove(token)
+        database.sessionDao().deleteByToken(token)
     }
 
-    fun extendSession(token: String): Boolean {
-        val session = sessions[token] ?: return false
-        if (session.expiresAt.isBefore(Instant.now())) {
-            sessions.remove(token)
-            return false
-        }
-        sessions[token] = session.copy(expiresAt = Instant.now().plusSeconds(sessionDuration / 1000))
-        return true
+    fun invalidateUserSessions(userId: Long) {
+        database.sessionDao().deleteByUserId(userId)
     }
 
-    private fun cleanupExpiredSessions() {
-        val now = Instant.now()
-        sessions.entries.removeIf { it.value.expiresAt.isBefore(now) }
+    fun clearAllSessions(): Int {
+        return database.sessionDao().deleteAll()
+    }
+
+    fun countActiveSessions(): Int {
+        return database.sessionDao().countActive(System.currentTimeMillis())
     }
 }

@@ -62,11 +62,82 @@ fun UserManagementScreen(viewModel: UserManagementViewModel) {
             CreateUserDialog(coroutineScope,viewModel, onDismissRequest = {->showCreateUserForm=false})
         }
 
+        SessionsCard(viewModel)
+
         LazyColumn(
             modifier = Modifier.weight(1f)
         ) {
             items(viewModel.users) { user -> UserItem(user = user, viewModel) }
         }
+    }
+}
+
+
+@Composable
+fun SessionsCard(viewModel: UserManagementViewModel) {
+    val activeSessions by viewModel.activeSessions.collectAsState()
+    var showClearSessionsDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadActiveSessions()
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Sessions",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (activeSessions == 1) "1 active session" else "$activeSessions active sessions",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = { showClearSessionsDialog = true },
+                enabled = activeSessions > 0,
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) { Text("Clear Sessions") }
+        }
+    }
+
+    if (showClearSessionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearSessionsDialog = false },
+            title = { Text("Clear all sessions?") },
+            text = { Text("Everyone signed in to the web app will be logged out.") },
+            confirmButton = {
+                CommonButton("Clear", {
+                    viewModel.clearAllSessions()
+                    showClearSessionsDialog = false
+                })
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearSessionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

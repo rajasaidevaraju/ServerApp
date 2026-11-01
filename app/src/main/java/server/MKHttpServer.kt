@@ -56,7 +56,7 @@ class MKHttpServer(private val context: Context) : NanoHTTPD(1280) {
     private val prefHandler by lazy { SharedPreferencesHelper(context) }
     private val fileHandlerHelper by lazy { FileHandlerHelper(context) }
     private val networkService by lazy { NetworkService() }
-    private val sessionManager = SessionManager()
+    private val sessionManager by lazy { SessionManager(database) }
     private val userService by lazy {UserService(database,sessionManager)}
     private val entityService by lazy {EntityService(database)}
     private val fileService by lazy { FileService(database,fileHandlerHelper,prefHandler,context) }

@@ -12,19 +12,21 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import database.dao.ActressDAO
 import database.dao.CategoryDAO
+import database.dao.SessionDAO
 import database.dao.UserDao
 import database.dao.VideoActressCrossRefDAO
 import database.dao.VideoCategoryCrossRefDAO
 import database.entity.Actress
 import database.entity.Category
+import database.entity.Session
 import database.entity.User
 import database.jointable.VideoActressCrossRef
 import database.jointable.VideoCategoryCrossRef
 
 
 @Database(
-    entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class, UploadProgress::class],
-    version = 10,exportSchema = false
+    entities = [FileMeta::class, Actress::class, Category::class, VideoActressCrossRef::class, VideoCategoryCrossRef::class, User::class, UploadProgress::class, Session::class],
+    version = 11,exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fileDao(): FileDAO
@@ -34,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun videoCategoryCrossRefDao(): VideoCategoryCrossRefDAO
     abstract fun userDao(): UserDao
     abstract fun uploadProgressDao(): UploadProgressDAO
+    abstract fun sessionDao(): SessionDAO
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -48,7 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
                 INSTANCE = instance
                 return instance
             }
@@ -177,6 +180,21 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "UPDATE file_meta SET thumbnail_updated_at = ${System.currentTimeMillis()} WHERE screenshot_binary IS NOT NULL"
                 )
+            }
+        }
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE sessions (
+                        token TEXT PRIMARY KEY NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        expires_at INTEGER NOT NULL,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sessions_user_id ON sessions(user_id)")
             }
         }
     }

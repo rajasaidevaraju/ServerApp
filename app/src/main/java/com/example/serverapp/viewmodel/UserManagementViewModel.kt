@@ -24,7 +24,7 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
 
     private val database  by lazy { AppDatabase.getDatabase(application) }
     private val userDao = database.userDao()
-    private val sessionManager = SessionManager()
+    private val sessionManager by lazy { SessionManager(database) }
     private val userService by lazy { UserService(database,sessionManager) }
 
     private val _usernameError = MutableStateFlow("")
@@ -61,8 +61,29 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
 
     val users = mutableStateListOf<User>()
 
+    private val _activeSessions = MutableStateFlow(0)
+    val activeSessions: StateFlow<Int> = _activeSessions
+
     init {
         loadUsers()
+        loadActiveSessions()
+    }
+
+    fun loadActiveSessions() {
+        viewModelScope.launch {
+            _activeSessions.value = withContext(Dispatchers.IO) {
+                sessionManager.countActiveSessions()
+            }
+        }
+    }
+
+    fun clearAllSessions() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                sessionManager.clearAllSessions()
+            }
+            loadActiveSessions()
+        }
     }
 
     private fun loadUsers() {
@@ -129,6 +150,7 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
                 val salt = BCrypt.gensalt()
                 val hashedPassword = BCrypt.hashpw(newPassword, salt)
                 userDao.updatePasswordWithSalt(userId, hashedPassword, salt)
+                sessionManager.invalidateUserSessions(userId)
                 _passwordUpdateResult.value = true
             }
         }
@@ -152,6 +174,7 @@ class UserManagementViewModel(application: Application): AndroidViewModel(applic
                 val user = userDao.getUserById(userId) ?: return@withContext
                 if(!user.disabled){
                     userDao.setDisabled(userId, true)
+                    sessionManager.invalidateUserSessions(userId)
                     loadUsers()
                 }
             }
